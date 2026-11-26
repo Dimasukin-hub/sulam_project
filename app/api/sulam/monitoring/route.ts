@@ -113,14 +113,16 @@ export async function GET(request: NextRequest) {
       // Tanggal Order
       const tglOrderStr = formatToDDMMYYYY(ord?.tanggalOrder);
 
-      // Umur Forcing: Math.round((today - tglFMax) / 30.4)
-      let umurForcingNum: number | null = null;
-      let umurForcingStr = '-';
-      if (tglFMaxDate) {
-        const diffDays = (today.getTime() - tglFMaxDate.getTime()) / (1000 * 60 * 60 * 24);
-        umurForcingNum = Math.round(diffDays / 30.4);
-        umurForcingStr = umurForcingNum.toString();
+      // Umur Forcing: Mengikuti data umurFProd di MasterStatusLokasi, atau dihitung dari rumus umurFProd
+      let umurForcingNum: number | null = mLoc.umurFProd ?? null;
+      if (umurForcingNum === null) {
+        const tglFProdDate = mLoc.forcingGabungan || mLoc.forcing2027 || mLoc.forcingProd2026;
+        if (tglFProdDate) {
+          const diffDays = (today.getTime() - new Date(tglFProdDate).getTime()) / (1000 * 60 * 60 * 24);
+          umurForcingNum = Math.round(diffDays / 30.4);
+        }
       }
+      const umurForcingStr = umurForcingNum !== null && umurForcingNum !== undefined ? umurForcingNum.toString() : '-';
 
       // Permintaan Ritase
       const permintaanJumlah = ord?.jumlah ?? 0;

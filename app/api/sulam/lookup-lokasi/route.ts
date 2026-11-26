@@ -60,15 +60,17 @@ export async function GET(request: NextRequest) {
     const wilayah = statusLokasi?.strucPlant || listSulam?.wilayah || null;
     const tglFMax = listSulam?.tglFMax || null;
 
-    let usia: number | null = null;
-    let usiaDetailStr = '-';
-    if (tglFMax) {
-      const today = new Date();
-      const diffMs = today.getTime() - new Date(tglFMax).getTime();
-      const diffDays = diffMs / (1000 * 60 * 60 * 24);
-      usia = Math.round(diffDays / 30.4);
-      usiaDetailStr = `${usia} Bulan`;
+    let usia: number | null = statusLokasi?.umurFProd ?? listSulam?.umurForcing ?? null;
+    if (usia === null) {
+      const tglFProdDate = statusLokasi?.forcingGabungan || statusLokasi?.forcing2027 || statusLokasi?.forcingProd2026 || listSulam?.tglFProd;
+      if (tglFProdDate) {
+        const today = new Date();
+        const diffMs = today.getTime() - new Date(tglFProdDate).getTime();
+        const diffDays = diffMs / (1000 * 60 * 60 * 24);
+        usia = Math.round(diffDays / 30.4);
+      }
     }
+    const usiaDetailStr = usia !== null && usia !== undefined ? `${usia} Bulan` : '-';
 
     const spekBB = listSulam?.spekBibit || null;
     const keterangan = listSulam?.keteranganProses || (spekBB?.toLowerCase().includes('pangkas prod') ? 'Pangkas Produksi' : null);

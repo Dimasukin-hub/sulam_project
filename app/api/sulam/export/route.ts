@@ -100,11 +100,18 @@ export async function GET(request: NextRequest) {
       // 9. Tanggal Order
       const tglOrderStr = formatToDDMMYYYY(ord?.tanggalOrder);
 
-      // 10. Umur Forcing
+      // 10. Umur Forcing: Mengikuti data umurFProd di MasterStatusLokasi, atau dihitung dari rumus umurFProd
       let umurForcing: number | string = '-';
-      if (tglFMaxDate) {
-        const diffDays = (today.getTime() - tglFMaxDate.getTime()) / (1000 * 60 * 60 * 24);
-        umurForcing = Math.round(diffDays / 30.4);
+      let umurForcingNum: number | null = mLoc.umurFProd ?? null;
+      if (umurForcingNum === null) {
+        const tglFProdDate = mLoc.forcingGabungan || mLoc.forcing2027 || mLoc.forcingProd2026;
+        if (tglFProdDate) {
+          const diffDays = (today.getTime() - new Date(tglFProdDate).getTime()) / (1000 * 60 * 60 * 24);
+          umurForcingNum = Math.round(diffDays / 30.4);
+        }
+      }
+      if (umurForcingNum !== null && umurForcingNum !== undefined) {
+        umurForcing = umurForcingNum;
       }
 
       // 11. Permintaan Ritase
