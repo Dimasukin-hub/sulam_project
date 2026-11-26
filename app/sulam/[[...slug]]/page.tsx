@@ -6,6 +6,8 @@ import { Loader2 } from 'lucide-react';
 import Header from '@/components/Header';
 import MonitorSulamView from '@/components/sulam/MonitorSulamView';
 import FormOrderSulamView from '@/components/sulam/FormOrderSulamView';
+import FormDropSulamView from '@/components/sulam/FormDropSulamView';
+import FormRealisasiSulamView from '@/components/sulam/FormRealisasiSulamView';
 import MasterStatusLokasiView from '@/components/MasterStatusLokasiView';
 import MasterOrderSulamView from '@/components/sulam/MasterOrderSulamView';
 import MasterDropBibitSulamView from '@/components/sulam/MasterDropBibitSulamView';
@@ -162,6 +164,12 @@ export default function SulamPage() {
         </div>
         <div className={(activeTab === 'form_order_sulam' || activeTab === 'form_input') ? 'space-y-6 animate-in fade-in duration-150' : 'hidden'}>
           <FormOrderSulamView />
+        </div>
+        <div className={activeTab === 'form_drop_sulam' ? 'space-y-6 animate-in fade-in duration-150' : 'hidden'}>
+          <FormDropSulamView />
+        </div>
+        <div className={activeTab === 'form_realisasi_sulam' ? 'space-y-6 animate-in fade-in duration-150' : 'hidden'}>
+          <FormRealisasiSulamView />
         </div>
         <div className={(activeTab === 'master_data' || activeTab === 'master_data_sulam') ? 'space-y-6 animate-in fade-in duration-150' : 'hidden'}>
           <div className={masterDataSubTab === 'master_status_lokasi' ? 'block' : 'hidden'}>

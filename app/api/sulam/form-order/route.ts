@@ -137,25 +137,101 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Otomatis sinkronkan juga catatan ke MasterDataOrderSulam jika belum ada
+    // 1. Ambil spesifikasi kapasitas rit CD & Fuso dari MasterSpekBibitSulam
+    let stdRitCD = 2000;
+    let stdRitFuso = 3500;
     try {
-      const stdRitCD = 3000;
-      const btgPerRit = (Number(ritCD) || 0) * stdRitCD + (Number(ritFuso) || 0) * 4500;
+      const spek = await prisma.masterSpekBibitSulam.findFirst({
+        where: {
+          spekBBSulamBtg: { equals: kelasBibit.trim(), mode: 'insensitive' },
+        },
+      });
+      if (spek) {
+        if (spek.cd > 0) stdRitCD = spek.cd;
+        if (spek.fuso > 0) stdRitFuso = spek.fuso;
+      }
+    } catch (e) {
+      console.warn('Fallback spek kapasitas rit:', e);
+    }
+
+    const nRitCD = Number(ritCD) || 0;
+    const nRitFuso = Number(ritFuso) || 0;
+    const totalRit = nRitCD + nRitFuso;
+    const btgPerRit = (nRitCD * stdRitCD) + (nRitFuso * stdRitFuso);
+    const orderDate = new Date();
+
+    // 2. Tambah baris baru di MasterDataOrderSulam (menambah record baru, bukan menimpa)
+    try {
       await prisma.masterDataOrderSulam.create({
         data: {
           lokasi: cleanLokasi,
           wilayah: cleanWilayah,
-          tanggalOrder: new Date(),
+          tanggalOrder: orderDate,
           spekBibit: kelasBibit.trim(),
           jumlah: btgPerRit,
-          rit: (Number(ritCD) || 0) + (Number(ritFuso) || 0),
+          rit: totalRit,
           realRit: 0,
           manual: 0,
           keteranganProses: keterangan?.trim() || null,
         },
       });
     } catch (e) {
-      console.warn('Sync to MasterDataOrderSulam optional note:', e);
+      console.warn('Sync to MasterDataOrderSulam error:', e);
+    }
+
+    // 3. Update / Sinkronisasi ke tabel database ListSulam
+    try {
+      const existingList = await prisma.listSulam.findUnique({
+        where: { lokasi: cleanLokasi },
+      });
+
+      if (existingList) {
+        const newJumlah = (existingList.permintaanJumlah || 0) + btgPerRit;
+        const newRit = (existingList.permintaanRit || 0) + totalRit;
+        const dropTotal = existingList.dropTotal || 0;
+        const dropDev = newRit - dropTotal;
+        const dropPct = newRit > 0 ? Number(((dropTotal / newRit) * 100).toFixed(1)) : 0;
+
+        await prisma.listSulam.update({
+          where: { lokasi: cleanLokasi },
+          data: {
+            wilayah: cleanWilayah || existingList.wilayah,
+            tglOrder: orderDate,
+            permintaanJumlah: newJumlah,
+            permintaanRit: newRit,
+            dropDev,
+            dropPct,
+            spekBibit: kelasBibit.trim() || existingList.spekBibit,
+            keteranganProses: keterangan?.trim() || existingList.keteranganProses,
+          },
+        });
+      } else {
+        const mLoc = await prisma.masterStatusLokasi.findUnique({
+          where: { lokasi: cleanLokasi },
+        });
+
+        await prisma.listSulam.create({
+          data: {
+            lokasi: cleanLokasi,
+            wilayah: cleanWilayah || mLoc?.strucPlant,
+            jenisBibit: mLoc?.jenis,
+            kelasBibit: mLoc?.kelas,
+            tglRawat: mLoc?.tglRawat,
+            tglStdForcing: mLoc?.forcingStd,
+            tglFProd: mLoc?.forcingGabungan || mLoc?.forcing2027 || mLoc?.forcingProd2026,
+            tglOrder: orderDate,
+            umurForcing: mLoc?.umurFProd,
+            permintaanJumlah: btgPerRit,
+            permintaanRit: totalRit,
+            dropDev: totalRit,
+            dropPct: 0,
+            spekBibit: kelasBibit.trim(),
+            keteranganProses: keterangan?.trim() || null,
+          },
+        });
+      }
+    } catch (e) {
+      console.warn('Sync to ListSulam error:', e);
     }
 
     return NextResponse.json({

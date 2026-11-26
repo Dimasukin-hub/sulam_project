@@ -199,3 +199,35 @@ model FormTiketOrderSulam {
   @@index([createdAt])
 }
 
+model FormDropSulam {
+  id         Int       @id @default(autoincrement())
+  lokasi     String    // 1. Lokasi
+  wilayah    String?   // 2. Wilayah
+  tanggal    DateTime? // 3. Tanggal
+  cd         Int       @default(0) // 4. CD
+  fuso       Int       @default(0) // 5. Fuso
+  kelasBibit String?   // 6. Kelas Bibit
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([lokasi])
+  @@index([wilayah])
+  @@index([tanggal])
+}
+
+model FormRealisasiSulam {
+  id          Int       @id @default(autoincrement())
+  lokasi      String    // 1. Lokasi
+  wilayah     String?   // 2. Wilayah
+  tanggal     DateTime? // 3. Tanggal
+  jumlahTk    Int       @default(0) // 4. Jumlah TK
+  jumlahBibit Int       @default(0) // 5. Jumlah Bibit
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([lokasi])
+  @@index([wilayah])
+  @@index([tanggal])
+}
+
+
