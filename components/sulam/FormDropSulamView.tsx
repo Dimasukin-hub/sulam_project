@@ -154,7 +154,7 @@ export default function FormDropSulamView() {
   ];
 
   const formatDateDisplay = (dateStr: string) => {
-    if (!dateStr) return 'Pilih Tanggal Drop...';
+    if (!dateStr) return '';
     const d = new Date(dateStr);
     if (isNaN(d.getTime())) return dateStr;
     const day = String(d.getDate()).padStart(2, '0');
@@ -235,7 +235,7 @@ export default function FormDropSulamView() {
   );
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto pb-12">
+    <div className="space-y-4 sm:space-y-6 w-full pb-12">
       {/* HEADER SECTION */}
       <div className="p-6 rounded-3xl bg-linear-to-r from-emerald-600 to-teal-700 text-white shadow-lg relative overflow-hidden">
         <div className="absolute right-0 top-0 translate-x-12 -translate-y-8 w-64 h-64 bg-white/10 rounded-full blur-2xl pointer-events-none" />
@@ -370,7 +370,7 @@ export default function FormDropSulamView() {
               onClick={() => setIsCalendarOpen((prev) => !prev)}
               className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-600 text-xs font-semibold text-slate-900 dark:text-slate-100 flex items-center justify-between cursor-pointer shadow-2xs hover:border-emerald-600 transition-colors"
             >
-              <span>{formatDateDisplay(tanggal)}</span>
+              <span className="min-h-[16px]">{formatDateDisplay(tanggal)}</span>
               <Calendar className="w-4 h-4 text-slate-400" />
             </div>
 
@@ -455,7 +455,7 @@ export default function FormDropSulamView() {
             <span className="w-2 h-2 rounded-full bg-emerald-600" />
             <span>Jenis Rit <b className="text-rose-500">*</b></span>
           </label>
-          <div className="grid grid-cols-2 gap-3 sm:gap-4 max-w-md">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 w-full">
             {/* Rit CD */}
             <div className="p-2 sm:p-3 rounded-xl bg-emerald-500/5 dark:bg-emerald-500/10 border-2 border-emerald-500/40 dark:border-emerald-500/60 focus-within:border-emerald-500 transition-all text-center shadow-2xs">
               <span className="text-[11px] font-extrabold text-emerald-800 dark:text-emerald-300 block mb-1">

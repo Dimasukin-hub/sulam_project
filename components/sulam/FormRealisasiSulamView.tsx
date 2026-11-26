@@ -130,7 +130,7 @@ export default function FormRealisasiSulamView() {
   ];
 
   const formatDateDisplay = (dateStr: string) => {
-    if (!dateStr) return 'Pilih Tanggal Realisasi...';
+    if (!dateStr) return '';
     const d = new Date(dateStr);
     if (isNaN(d.getTime())) return dateStr;
     const day = String(d.getDate()).padStart(2, '0');
@@ -209,7 +209,7 @@ export default function FormRealisasiSulamView() {
   );
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto pb-12">
+    <div className="space-y-4 sm:space-y-6 w-full pb-12">
       {/* HEADER SECTION */}
       <div className="p-6 rounded-3xl bg-linear-to-r from-teal-600 to-emerald-700 text-white shadow-lg relative overflow-hidden">
         <div className="absolute right-0 top-0 translate-x-12 -translate-y-8 w-64 h-64 bg-white/10 rounded-full blur-2xl pointer-events-none" />
@@ -342,7 +342,7 @@ export default function FormRealisasiSulamView() {
               onClick={() => setIsCalendarOpen((prev) => !prev)}
               className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-600 text-xs font-semibold text-slate-900 dark:text-slate-100 flex items-center justify-between cursor-pointer shadow-2xs hover:border-teal-600 transition-colors"
             >
-              <span>{formatDateDisplay(tanggal)}</span>
+              <span className="min-h-[16px]">{formatDateDisplay(tanggal)}</span>
               <Calendar className="w-4 h-4 text-slate-400" />
             </div>
 
@@ -423,7 +423,7 @@ export default function FormRealisasiSulamView() {
 
         {/* 4. DUA KOTAK: JUMLAH TK & JUMLAH BIBIT (DIAMETER STYLE) */}
         <div>
-          <div className="grid grid-cols-2 gap-3 sm:gap-4 max-w-md">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 w-full">
             {/* Jumlah TK */}
             <div className="p-2 sm:p-3 rounded-xl bg-slate-500/5 dark:bg-slate-500/10 border-2 border-slate-300 dark:border-slate-600 focus-within:border-teal-500 transition-all text-center shadow-2xs">
               <span className="text-[11px] font-extrabold text-slate-700 dark:text-slate-300 block mb-1">
