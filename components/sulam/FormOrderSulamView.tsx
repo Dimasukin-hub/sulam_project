@@ -41,6 +41,12 @@ const KELAS_BIBIT_OPTIONS = [
   'Crown No. 6',
 ];
 
+export const KETERANGAN_SULAM_OPTIONS = [
+  'Pangkas Produksi',
+  'Pangkas Samping',
+  'Proses',
+];
+
 interface GeneratedFormDoc {
   lokasi: string;
   wilayah: string;
@@ -70,7 +76,8 @@ export default function FormOrderSulamView() {
 
   const [ritCD, setRitCD] = useState<number | ''>('');
   const [ritFuso, setRitFuso] = useState<number | ''>('');
-  const [keterangan, setKeterangan] = useState('');
+  const [keterangan, setKeterangan] = useState('Pangkas Produksi');
+  const [isKeteranganDropdownOpen, setIsKeteranganDropdownOpen] = useState(false);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formMessage, setFormMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -107,6 +114,9 @@ export default function FormOrderSulamView() {
       }
       if (!target.closest('.kelasbibit-dropdown-container')) {
         setIsKelasDropdownOpen(false);
+      }
+      if (!target.closest('.keterangan-dropdown-container')) {
+        setIsKeteranganDropdownOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -176,7 +186,7 @@ export default function FormOrderSulamView() {
       setKelasBibit('Sucker No. 0');
       setRitCD('');
       setRitFuso('');
-      setKeterangan('');
+      setKeterangan('Pangkas Produksi');
       return;
     }
 
@@ -194,7 +204,7 @@ export default function FormOrderSulamView() {
         }
         setRitCD(d.ritCD || '');
         setRitFuso(d.ritFuso || '');
-        setKeterangan(d.keterangan || '');
+        setKeterangan(d.keterangan || 'Pangkas Produksi');
       }
     } catch (err) {
       console.error('Lookup failed:', err);
@@ -259,7 +269,7 @@ export default function FormOrderSulamView() {
         setKelasBibit('Sucker No. 0');
         setRitCD('');
         setRitFuso('');
-        setKeterangan('');
+        setKeterangan('Pangkas Produksi');
         
         fetchTickets();
         if (typeof window !== 'undefined') {
@@ -691,18 +701,53 @@ export default function FormOrderSulamView() {
             </div>
           </div>
 
-          {/* Baris 4: Keterangan (Default kosong) */}
-          <div>
+          {/* Baris 4: Keterangan (Dropdown Interaktif dengan Chevron Berputar) */}
+          <div className="relative keterangan-dropdown-container">
             <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1.5">
               Keterangan
             </label>
-            <input
-              type="text"
-              value={keterangan}
-              onChange={(e) => setKeterangan(e.target.value)}
-              placeholder=""
-              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500 text-xs"
-            />
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setIsKeteranganDropdownOpen(!isKeteranganDropdownOpen)}
+                className="w-full pl-3.5 pr-10 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500 text-xs text-left cursor-pointer flex items-center justify-between"
+              >
+                <span className={keterangan ? 'text-slate-900 dark:text-slate-100 font-bold' : 'text-slate-400'}>
+                  {keterangan || 'Pilih Keterangan'}
+                </span>
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
+                  <ChevronDown
+                    className={`w-4 h-4 transition-transform duration-200 ${
+                      isKeteranganDropdownOpen ? 'rotate-180 text-emerald-600' : ''
+                    }`}
+                  />
+                </span>
+              </button>
+            </div>
+
+            {/* Dropdown Options List */}
+            {isKeteranganDropdownOpen && (
+              <div className="absolute left-0 right-0 top-full mt-1.5 max-h-56 overflow-y-auto rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-xl z-50 divide-y divide-slate-100 dark:divide-slate-800">
+                {Array.from(new Set([...KETERANGAN_SULAM_OPTIONS, ...(keterangan ? [keterangan] : [])])).map((opt) => (
+                  <button
+                    key={opt}
+                    type="button"
+                    onClick={() => {
+                      setKeterangan(opt);
+                      setIsKeteranganDropdownOpen(false);
+                    }}
+                    className={`w-full px-3.5 py-2.5 text-left text-xs hover:bg-emerald-50 dark:hover:bg-emerald-950/40 flex items-center justify-between cursor-pointer transition-colors ${
+                      keterangan === opt
+                        ? 'bg-emerald-50 dark:bg-emerald-950/40 font-bold text-emerald-700 dark:text-emerald-400'
+                        : 'text-slate-700 dark:text-slate-300'
+                    }`}
+                  >
+                    <span>{opt}</span>
+                    {keterangan === opt && <Check className="w-3.5 h-3.5 text-emerald-600" />}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Action Buttons: Preview Form Order & Submit */}
