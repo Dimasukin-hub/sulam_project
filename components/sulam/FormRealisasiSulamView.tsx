@@ -12,11 +12,10 @@ import {
   RefreshCw,
   Search,
   MapPin,
-  ChevronDown,
   Layers,
-  Info,
   Users,
   Sprout,
+  XCircle,
 } from 'lucide-react';
 import { useAuth } from '@/components/AuthProvider';
 
@@ -41,7 +40,7 @@ export default function FormRealisasiSulamView() {
 
   // Datepicker states
   const today = new Date();
-  const [tanggal, setTanggal] = useState<string>(today.toISOString().slice(0, 10));
+  const [tanggal, setTanggal] = useState<string>('');
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [calendarMonth, setCalendarMonth] = useState(today.getMonth());
   const [calendarYear, setCalendarYear] = useState(today.getFullYear());
@@ -71,6 +70,21 @@ export default function FormRealisasiSulamView() {
     }
     fetchLokasiOptions();
     fetchRealHistory();
+  }, []);
+
+  // Close dropdowns on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('.lokasi-dropdown-container')) {
+        setIsLokasiDropdownOpen(false);
+      }
+      if (!target.closest('.datepicker-dropdown-container')) {
+        setIsCalendarOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   // 2. Fetch riwayat transaksi realisasi
@@ -116,7 +130,7 @@ export default function FormRealisasiSulamView() {
   ];
 
   const formatDateDisplay = (dateStr: string) => {
-    if (!dateStr) return 'Pilih Tanggal';
+    if (!dateStr) return 'Pilih Tanggal Realisasi...';
     const d = new Date(dateStr);
     if (isNaN(d.getTime())) return dateStr;
     const day = String(d.getDate()).padStart(2, '0');
@@ -137,7 +151,11 @@ export default function FormRealisasiSulamView() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!selectedLokasi) {
-      setFormMessage({ type: 'error', text: 'Lokasi petak wajib dipilih!' });
+      setFormMessage({ type: 'error', text: 'Lokasi wajib dipilih!' });
+      return;
+    }
+    if (!tanggal) {
+      setFormMessage({ type: 'error', text: 'Tanggal realisasi wajib dipilih!' });
       return;
     }
 
@@ -186,8 +204,8 @@ export default function FormRealisasiSulamView() {
 
   // Filtered dropdown options
   const filteredLokasiList = lokasiList.filter((item) =>
-    item.lokasi.toLowerCase().includes(lokasiSearch.toLowerCase()) ||
-    (item.wilayah && item.wilayah.toLowerCase().includes(lokasiSearch.toLowerCase()))
+    item.lokasi.toLowerCase().includes((selectedLokasi || '').toLowerCase()) ||
+    (item.wilayah && item.wilayah.toLowerCase().includes((selectedLokasi || '').toLowerCase()))
   );
 
   return (
@@ -197,13 +215,9 @@ export default function FormRealisasiSulamView() {
         <div className="absolute right-0 top-0 translate-x-12 -translate-y-8 w-64 h-64 bg-white/10 rounded-full blur-2xl pointer-events-none" />
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 relative z-10">
           <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/20 text-xs font-bold mb-2 backdrop-blur-md">
-              <CheckSquare className="w-3.5 h-3.5" />
-              <span>Portal Sulam • Modul Realisasi Tanam</span>
-            </div>
             <h1 className="text-2xl font-black tracking-tight">Form Realisasi Sulam</h1>
             <p className="text-xs text-white/80 mt-1 max-w-xl">
-              Pencatatan realisasi penanaman bibit sulam di petak kebun. Menambah baris baru di <b>MasterDataRealSulam</b>, serta otomatis menambah <b>sulamReal</b> dan mengurangi <b>sulamSaldo</b> pada tabel ListSulam.
+              Pencatatan realisasi penanaman bibit sulam di lokasi lahan.
             </p>
           </div>
         </div>
@@ -235,83 +249,90 @@ export default function FormRealisasiSulamView() {
         </h2>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {/* 1. KOTAK LOKASI (DROPDOWN) */}
-          <div className="relative">
+          {/* 1. KOTAK LOKASI (INPUT ALA GORONG-GORONG) */}
+          <div className="relative lokasi-dropdown-container">
             <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
               <MapPin className="w-3.5 h-3.5 text-slate-500" />
-              <span>Lokasi Petak <b className="text-rose-500">*</b></span>
+              <span>Lokasi <b className="text-rose-500">*</b></span>
             </label>
 
-            <div
-              onClick={() => setIsLokasiDropdownOpen((prev) => !prev)}
-              className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-600 text-xs font-semibold text-slate-900 dark:text-slate-100 flex items-center justify-between cursor-pointer shadow-2xs hover:border-teal-600 transition-colors"
-            >
-              <span>{selectedLokasi || 'Pilih Lokasi Petak...'}</span>
-              <ChevronDown className="w-4 h-4 text-slate-400" />
+            <div className="relative">
+              <input
+                type="text"
+                value={selectedLokasi}
+                onChange={(e) => {
+                  const val = e.target.value.toUpperCase();
+                  setSelectedLokasi(val);
+                  setIsLokasiDropdownOpen(true);
+                  const match = lokasiList.find((item) => item.lokasi.trim().toUpperCase() === val.trim());
+                  if (match) {
+                    handleSelectLokasi(match.lokasi, match.wilayah);
+                  }
+                }}
+                onFocus={() => setIsLokasiDropdownOpen(true)}
+                placeholder=""
+                className="w-full pl-3.5 pr-9 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-600 text-xs font-semibold text-slate-900 dark:text-slate-100 focus:border-teal-600 focus:outline-none"
+              />
+
+              {selectedLokasi ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedLokasi('');
+                    setWilayah('');
+                    setIsLokasiDropdownOpen(false);
+                  }}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer p-0.5"
+                  title="Hapus / Reset Lokasi"
+                >
+                  <XCircle className="w-4 h-4" />
+                </button>
+              ) : (
+                <Search className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+              )}
             </div>
 
+            {/* Dropdown Options */}
             {isLokasiDropdownOpen && (
-              <div className="absolute left-0 top-full mt-1.5 w-full p-2.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-150">
-                <div className="relative mb-2">
-                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
-                  <input
-                    type="text"
-                    value={lokasiSearch}
-                    onChange={(e) => setLokasiSearch(e.target.value)}
-                    placeholder="Cari nomor lokasi..."
-                    className="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
-                    autoFocus
-                  />
-                </div>
-                <div className="max-h-56 overflow-y-auto space-y-1 custom-scrollbar">
-                  {filteredLokasiList.length === 0 ? (
-                    <p className="text-[11px] text-slate-400 text-center py-3">Tidak ada lokasi cocok</p>
-                  ) : (
-                    filteredLokasiList.map((item) => (
-                      <div
-                        key={item.lokasi}
-                        onClick={() => handleSelectLokasi(item.lokasi, item.wilayah)}
-                        className={`px-3 py-2 rounded-lg text-xs font-medium cursor-pointer transition-colors flex items-center justify-between ${
-                          selectedLokasi === item.lokasi
-                            ? 'bg-teal-600 text-white font-bold'
-                            : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'
-                        }`}
-                      >
-                        <span>{item.lokasi}</span>
-                        <span className={`text-[10px] font-mono ${selectedLokasi === item.lokasi ? 'text-white/80' : 'text-slate-400'}`}>
-                          {item.wilayah || '-'}
-                        </span>
-                      </div>
-                    ))
-                  )}
-                </div>
+              <div className="absolute left-0 right-0 top-full mt-1.5 max-h-48 overflow-y-auto rounded-xl bg-white dark:bg-slate-900 border-2 border-slate-300 dark:border-slate-700 shadow-xl z-50 divide-y divide-slate-100 dark:divide-slate-800 scrollbar-thin">
+                {filteredLokasiList.length === 0 ? (
+                  <div className="px-3 py-2 text-xs text-slate-400 text-center">Lokasi tidak ditemukan</div>
+                ) : (
+                  filteredLokasiList.map((item) => (
+                    <button
+                      key={item.lokasi}
+                      type="button"
+                      onClick={() => {
+                        handleSelectLokasi(item.lokasi, item.wilayah);
+                        setIsLokasiDropdownOpen(false);
+                      }}
+                      className="w-full px-3.5 py-2 text-left text-xs hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center justify-between cursor-pointer transition-colors"
+                    >
+                      <span className="font-bold text-teal-600">{item.lokasi}</span>
+                      <span className="text-[10.5px] font-mono text-slate-400">{item.wilayah || '-'}</span>
+                    </button>
+                  ))
+                )}
               </div>
-            )}
-
-            {selectedLokasi && (
-              <p className="text-[10.5px] text-teal-600 dark:text-teal-400 font-semibold mt-1 flex items-center gap-1">
-                <Info className="w-3 h-3 shrink-0" />
-                <span>Petak: <b>{selectedLokasi}</b> ({wilayah || 'Wilayah -'})</span>
-              </p>
             )}
           </div>
 
-          {/* 2. KOTAK WILAYAH (OTOMATIS) */}
+          {/* 2. KOTAK WILAYAH */}
           <div>
             <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-              Wilayah Kebun
+              Wilayah
             </label>
             <input
               type="text"
               value={wilayah}
               readOnly
-              placeholder="Otomatis mengikuti lokasi"
+              placeholder=""
               className="w-full px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-600 dark:text-slate-300 cursor-not-allowed"
             />
           </div>
 
           {/* 3. KOTAK TANGGAL (DATEPICKER GORONG-GORONG STYLE) */}
-          <div className="relative">
+          <div className="relative datepicker-dropdown-container">
             <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
               <Calendar className="w-3.5 h-3.5 text-slate-500" />
               <span>Tanggal Realisasi <b className="text-rose-500">*</b></span>
@@ -400,42 +421,40 @@ export default function FormRealisasiSulamView() {
           </div>
         </div>
 
-        {/* 4. DUA KOTAK: JUMLAH TK & JUMLAH BIBIT */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700">
-          {/* Jumlah TK */}
-          <div>
-            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
-              <Users className="w-3.5 h-3.5 text-slate-500" />
-              <span>Jumlah Tenaga Kerja (TK)</span>
-            </label>
-            <input
-              type="number"
-              min="0"
-              value={jumlahTk}
-              onChange={(e) => setJumlahTk(e.target.value === '' ? '' : Math.max(0, parseInt(e.target.value, 10)))}
-              placeholder="Contoh: 12 Orang"
-              className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-600 text-sm font-bold text-slate-900 dark:text-slate-100 focus:border-teal-600 focus:outline-hidden"
-            />
-            <p className="text-[10.5px] text-slate-400 mt-1">Jumlah pekerja yang melakukan sulam pada hari tersebut.</p>
-          </div>
+        {/* 4. DUA KOTAK: JUMLAH TK & JUMLAH BIBIT (DIAMETER STYLE) */}
+        <div>
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 max-w-md">
+            {/* Jumlah TK */}
+            <div className="p-2 sm:p-3 rounded-xl bg-slate-500/5 dark:bg-slate-500/10 border-2 border-slate-300 dark:border-slate-600 focus-within:border-teal-500 transition-all text-center shadow-2xs">
+              <span className="text-[11px] font-extrabold text-slate-700 dark:text-slate-300 block mb-1">
+                Jumlah Tenaga Kerja (TK)
+              </span>
+              <input
+                type="number"
+                min="0"
+                value={jumlahTk}
+                onChange={(e) => setJumlahTk(e.target.value === '' ? '' : Math.max(0, parseInt(e.target.value, 10)))}
+                placeholder=""
+                className="w-full text-center text-base sm:text-lg font-mono font-black text-slate-900 dark:text-white bg-transparent focus:outline-none py-1 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+              />
+              <span className="text-[10px] text-slate-400 block text-center mt-0.5 font-semibold">Orang</span>
+            </div>
 
-          {/* Jumlah Bibit */}
-          <div>
-            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
-              <Sprout className="w-3.5 h-3.5 text-teal-600" />
-              <span>Jumlah Bibit Ditanam (Batang) <b className="text-rose-500">*</b></span>
-            </label>
-            <input
-              type="number"
-              min="1"
-              value={jumlahBibit}
-              onChange={(e) => setJumlahBibit(e.target.value === '' ? '' : Math.max(0, parseInt(e.target.value, 10)))}
-              placeholder="Contoh: 2000 Batang"
-              className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-600 text-sm font-bold text-slate-900 dark:text-slate-100 focus:border-teal-600 focus:outline-hidden"
-            />
-            <p className="text-[10.5px] text-teal-600 dark:text-teal-400 font-medium mt-1">
-              Mengurangi kolom <b>sulamSaldo</b> dan menambah <b>sulamReal</b> pada tabel ListSulam.
-            </p>
+            {/* Jumlah Bibit */}
+            <div className="p-2 sm:p-3 rounded-xl bg-teal-500/5 dark:bg-teal-500/10 border-2 border-teal-500/40 dark:border-teal-500/60 focus-within:border-teal-500 transition-all text-center shadow-2xs">
+              <span className="text-[11px] font-extrabold text-teal-800 dark:text-teal-300 block mb-1">
+                Jumlah Bibit (Batang) <b className="text-rose-500">*</b>
+              </span>
+              <input
+                type="number"
+                min="1"
+                value={jumlahBibit}
+                onChange={(e) => setJumlahBibit(e.target.value === '' ? '' : Math.max(0, parseInt(e.target.value, 10)))}
+                placeholder=""
+                className="w-full text-center text-base sm:text-lg font-mono font-black text-slate-900 dark:text-white bg-transparent focus:outline-none py-1 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+              />
+              <span className="text-[10px] text-slate-400 block text-center mt-0.5 font-semibold">Batang</span>
+            </div>
           </div>
         </div>
 
@@ -449,12 +468,12 @@ export default function FormRealisasiSulamView() {
             {isSubmitting ? (
               <>
                 <RefreshCw className="w-4 h-4 animate-spin" />
-                <span>Menyimpan Realisasi...</span>
+                <span>Menyimpan...</span>
               </>
             ) : (
               <>
                 <Send className="w-4 h-4" />
-                <span>Simpan Transaksi Realisasi Sulam</span>
+                <span>Simpan</span>
               </>
             )}
           </button>
@@ -463,32 +482,22 @@ export default function FormRealisasiSulamView() {
 
       {/* TABEL RIWAYAT TRANSAKSI REALISASI SULAM */}
       <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-4">
-          <div>
-            <h3 className="text-sm font-extrabold text-slate-800 dark:text-slate-100 flex items-center gap-2">
-              <CheckSquare className="w-4 h-4 text-teal-600" />
-              <span>Riwayat Transaksi Form Realisasi Sulam</span>
-            </h3>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Daftar seluruh input transaksi penanaman bibit sulam yang telah tersimpan.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={fetchRealHistory}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${isHistoryLoading ? 'animate-spin' : ''}`} />
-            <span>Segarkan</span>
-          </button>
+        <div className="border-b border-slate-100 dark:border-slate-800 pb-4">
+          <h3 className="text-sm font-extrabold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+            <CheckSquare className="w-4 h-4 text-teal-600" />
+            <span>Riwayat Transaksi Form Realisasi Sulam</span>
+          </h3>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Daftar seluruh input transaksi penanaman bibit sulam yang telah tersimpan.
+          </p>
         </div>
 
         <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800">
-          <table className="w-full text-xs text-left">
+          <table className="w-full text-xs text-center">
             <thead className="bg-slate-50 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 font-extrabold border-b border-slate-200 dark:border-slate-700">
               <tr>
                 <th className="py-2.5 px-3 text-center w-12">No</th>
-                <th className="py-2.5 px-3">Lokasi</th>
+                <th className="py-2.5 px-3 text-center">Lokasi</th>
                 <th className="py-2.5 px-3 text-center">Wilayah</th>
                 <th className="py-2.5 px-3 text-center">Tanggal</th>
                 <th className="py-2.5 px-3 text-center">Jumlah TK</th>
@@ -514,7 +523,7 @@ export default function FormRealisasiSulamView() {
                 realHistory.map((item, idx) => (
                   <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
                     <td className="py-2.5 px-3 text-center font-mono text-slate-400">{idx + 1}</td>
-                    <td className="py-2.5 px-3 font-bold text-slate-800 dark:text-slate-100">{item.lokasi}</td>
+                    <td className="py-2.5 px-3 text-center font-bold text-slate-800 dark:text-slate-100">{item.lokasi}</td>
                     <td className="py-2.5 px-3 text-center font-mono text-slate-600 dark:text-slate-300">{item.wilayah || '-'}</td>
                     <td className="py-2.5 px-3 text-center font-mono text-slate-500">
                       {item.tanggal ? new Date(item.tanggal).toISOString().slice(0, 10) : '-'}

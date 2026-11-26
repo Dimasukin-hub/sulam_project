@@ -727,26 +727,32 @@ export default function FormOrderSulamView() {
 
             {/* Dropdown Options List */}
             {isKeteranganDropdownOpen && (
-              <div className="absolute left-0 right-0 top-full mt-1.5 max-h-56 overflow-y-auto rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-xl z-50 divide-y divide-slate-100 dark:divide-slate-800">
-                {Array.from(new Set([...KETERANGAN_SULAM_OPTIONS, ...(keterangan ? [keterangan] : [])])).map((opt) => (
-                  <button
-                    key={opt}
-                    type="button"
-                    onClick={() => {
-                      setKeterangan(opt);
-                      setIsKeteranganDropdownOpen(false);
-                    }}
-                    className={`w-full px-3.5 py-2.5 text-left text-xs hover:bg-emerald-50 dark:hover:bg-emerald-950/40 flex items-center justify-between cursor-pointer transition-colors ${
-                      keterangan === opt
-                        ? 'bg-emerald-50 dark:bg-emerald-950/40 font-bold text-emerald-700 dark:text-emerald-400'
-                        : 'text-slate-700 dark:text-slate-300'
-                    }`}
-                  >
-                    <span>{opt}</span>
-                    {keterangan === opt && <Check className="w-3.5 h-3.5 text-emerald-600" />}
-                  </button>
-                ))}
-              </div>
+              <>
+                <div
+                  className="fixed inset-0 z-40 bg-transparent"
+                  onClick={() => setIsKeteranganDropdownOpen(false)}
+                />
+                <div className="absolute left-0 right-0 top-full mt-1.5 max-h-56 overflow-y-auto rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-xl z-50 divide-y divide-slate-100 dark:divide-slate-800">
+                  {Array.from(new Set([...KETERANGAN_SULAM_OPTIONS, ...(keterangan ? [keterangan] : [])])).map((opt) => (
+                    <button
+                      key={opt}
+                      type="button"
+                      onClick={() => {
+                        setKeterangan(opt);
+                        setIsKeteranganDropdownOpen(false);
+                      }}
+                      className={`w-full px-3.5 py-2.5 text-left text-xs hover:bg-emerald-50 dark:hover:bg-emerald-950/40 flex items-center justify-between cursor-pointer transition-colors ${
+                        keterangan === opt
+                          ? 'bg-emerald-50 dark:bg-emerald-950/40 font-bold text-emerald-700 dark:text-emerald-400'
+                          : 'text-slate-700 dark:text-slate-300'
+                      }`}
+                    >
+                      <span>{opt}</span>
+                      {keterangan === opt && <Check className="w-3.5 h-3.5 text-emerald-600" />}
+                    </button>
+                  ))}
+                </div>
+              </>
             )}
           </div>
 

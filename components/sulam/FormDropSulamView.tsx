@@ -15,6 +15,7 @@ import {
   ChevronDown,
   Layers,
   Info,
+  XCircle,
 } from 'lucide-react';
 import { useAuth } from '@/components/AuthProvider';
 
@@ -44,7 +45,7 @@ export default function FormDropSulamView() {
 
   // Datepicker states
   const today = new Date();
-  const [tanggal, setTanggal] = useState<string>(today.toISOString().slice(0, 10));
+  const [tanggal, setTanggal] = useState<string>('');
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [calendarMonth, setCalendarMonth] = useState(today.getMonth());
   const [calendarYear, setCalendarYear] = useState(today.getFullYear());
@@ -78,6 +79,21 @@ export default function FormDropSulamView() {
     }
     fetchLokasiOptions();
     fetchDropHistory();
+  }, []);
+
+  // Close dropdowns on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('.lokasi-dropdown-container')) {
+        setIsLokasiDropdownOpen(false);
+      }
+      if (!target.closest('.datepicker-dropdown-container')) {
+        setIsCalendarOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   // 2. Fetch riwayat transaksi drop
@@ -138,7 +154,7 @@ export default function FormDropSulamView() {
   ];
 
   const formatDateDisplay = (dateStr: string) => {
-    if (!dateStr) return 'Pilih Tanggal';
+    if (!dateStr) return 'Pilih Tanggal Drop...';
     const d = new Date(dateStr);
     if (isNaN(d.getTime())) return dateStr;
     const day = String(d.getDate()).padStart(2, '0');
@@ -159,7 +175,11 @@ export default function FormDropSulamView() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!selectedLokasi) {
-      setFormMessage({ type: 'error', text: 'Lokasi petak wajib dipilih!' });
+      setFormMessage({ type: 'error', text: 'Lokasi wajib dipilih!' });
+      return;
+    }
+    if (!tanggal) {
+      setFormMessage({ type: 'error', text: 'Tanggal drop wajib dipilih!' });
       return;
     }
 
@@ -210,8 +230,8 @@ export default function FormDropSulamView() {
 
   // Filtered dropdown options
   const filteredLokasiList = lokasiList.filter((item) =>
-    item.lokasi.toLowerCase().includes(lokasiSearch.toLowerCase()) ||
-    (item.wilayah && item.wilayah.toLowerCase().includes(lokasiSearch.toLowerCase()))
+    item.lokasi.toLowerCase().includes((selectedLokasi || '').toLowerCase()) ||
+    (item.wilayah && item.wilayah.toLowerCase().includes((selectedLokasi || '').toLowerCase()))
   );
 
   return (
@@ -221,13 +241,9 @@ export default function FormDropSulamView() {
         <div className="absolute right-0 top-0 translate-x-12 -translate-y-8 w-64 h-64 bg-white/10 rounded-full blur-2xl pointer-events-none" />
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 relative z-10">
           <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/20 text-xs font-bold mb-2 backdrop-blur-md">
-              <Truck className="w-3.5 h-3.5" />
-              <span>Portal Sulam • Modul Drop Fisik</span>
-            </div>
             <h1 className="text-2xl font-black tracking-tight">Form Drop Sulam</h1>
             <p className="text-xs text-white/80 mt-1 max-w-xl">
-              Pencatatan kedatangan (drop) bibit sulam ke petak lahan. Mengakumulasi kolom <b>dropReal</b> pada tabel database ListSulam dan otomatis menambah baris di MasterDataDropBibitSulam.
+              Pencatatan kedatangan (drop) bibit sulam ke lokasi lahan.
             </p>
           </div>
         </div>
@@ -261,84 +277,90 @@ export default function FormDropSulamView() {
         </h2>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {/* 1. KOTAK LOKASI (DROPDOWN) */}
-          <div className="relative">
+          {/* 1. KOTAK LOKASI (INPUT ALA GORONG-GORONG) */}
+          <div className="relative lokasi-dropdown-container">
             <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
               <MapPin className="w-3.5 h-3.5 text-slate-500" />
-              <span>Lokasi Petak <b className="text-rose-500">*</b></span>
+              <span>Lokasi <b className="text-rose-500">*</b></span>
             </label>
 
-            <div
-              onClick={() => setIsLokasiDropdownOpen((prev) => !prev)}
-              className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-600 text-xs font-semibold text-slate-900 dark:text-slate-100 flex items-center justify-between cursor-pointer shadow-2xs hover:border-emerald-600 transition-colors"
-            >
-              <span>{selectedLokasi || 'Pilih Lokasi Petak...'}</span>
-              <ChevronDown className="w-4 h-4 text-slate-400" />
+            <div className="relative">
+              <input
+                type="text"
+                value={selectedLokasi}
+                onChange={(e) => {
+                  const val = e.target.value.toUpperCase();
+                  setSelectedLokasi(val);
+                  setIsLokasiDropdownOpen(true);
+                  const match = lokasiList.find((item) => item.lokasi.trim().toUpperCase() === val.trim());
+                  if (match) {
+                    handleSelectLokasi(match.lokasi, match.wilayah);
+                  }
+                }}
+                onFocus={() => setIsLokasiDropdownOpen(true)}
+                placeholder=""
+                className="w-full pl-3.5 pr-9 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-600 text-xs font-semibold text-slate-900 dark:text-slate-100 focus:border-emerald-600 focus:outline-none"
+              />
+
+              {selectedLokasi ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedLokasi('');
+                    setWilayah('');
+                    setIsLokasiDropdownOpen(false);
+                  }}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer p-0.5"
+                  title="Hapus / Reset Lokasi"
+                >
+                  <XCircle className="w-4 h-4" />
+                </button>
+              ) : (
+                <Search className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+              )}
             </div>
 
+            {/* Dropdown Options */}
             {isLokasiDropdownOpen && (
-              <div className="absolute left-0 top-full mt-1.5 w-full p-2.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-150">
-                <div className="relative mb-2">
-                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
-                  <input
-                    type="text"
-                    value={lokasiSearch}
-                    onChange={(e) => setLokasiSearch(e.target.value)}
-                    placeholder="Cari nomor lokasi..."
-                    className="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
-                    autoFocus
-                  />
-                </div>
-                <div className="max-h-56 overflow-y-auto space-y-1 custom-scrollbar">
-                  {filteredLokasiList.length === 0 ? (
-                    <p className="text-[11px] text-slate-400 text-center py-3">Tidak ada lokasi cocok</p>
-                  ) : (
-                    filteredLokasiList.map((item) => (
-                      <div
-                        key={item.lokasi}
-                        onClick={() => handleSelectLokasi(item.lokasi, item.wilayah)}
-                        className={`px-3 py-2 rounded-lg text-xs font-medium cursor-pointer transition-colors flex items-center justify-between ${
-                          selectedLokasi === item.lokasi
-                            ? 'bg-emerald-600 text-white font-bold'
-                            : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'
-                        }`}
-                      >
-                        <span>{item.lokasi}</span>
-                        <span className={`text-[10px] font-mono ${selectedLokasi === item.lokasi ? 'text-white/80' : 'text-slate-400'}`}>
-                          {item.wilayah || '-'}
-                        </span>
-                      </div>
-                    ))
-                  )}
-                </div>
+              <div className="absolute left-0 right-0 top-full mt-1.5 max-h-48 overflow-y-auto rounded-xl bg-white dark:bg-slate-900 border-2 border-slate-300 dark:border-slate-700 shadow-xl z-50 divide-y divide-slate-100 dark:divide-slate-800 scrollbar-thin">
+                {filteredLokasiList.length === 0 ? (
+                  <div className="px-3 py-2 text-xs text-slate-400 text-center">Lokasi tidak ditemukan</div>
+                ) : (
+                  filteredLokasiList.map((item) => (
+                    <button
+                      key={item.lokasi}
+                      type="button"
+                      onClick={() => {
+                        handleSelectLokasi(item.lokasi, item.wilayah);
+                        setIsLokasiDropdownOpen(false);
+                      }}
+                      className="w-full px-3.5 py-2 text-left text-xs hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center justify-between cursor-pointer transition-colors"
+                    >
+                      <span className="font-bold text-emerald-600">{item.lokasi}</span>
+                      <span className="text-[10.5px] font-mono text-slate-400">{item.wilayah || '-'}</span>
+                    </button>
+                  ))
+                )}
               </div>
-            )}
-
-            {/* Wilayah monitor preview */}
-            {selectedLokasi && (
-              <p className="text-[10.5px] text-emerald-600 dark:text-emerald-400 font-semibold mt-1 flex items-center gap-1">
-                <Info className="w-3 h-3 shrink-0" />
-                <span>Lokasi terpilih: <b>{selectedLokasi}</b> ({wilayah || 'Wilayah -'})</span>
-              </p>
             )}
           </div>
 
-          {/* 2. KOTAK WILAYAH (OTOMATIS) */}
+          {/* 2. KOTAK WILAYAH */}
           <div>
             <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-              Wilayah Kebun
+              Wilayah
             </label>
             <input
               type="text"
               value={wilayah}
               readOnly
-              placeholder="Otomatis mengikuti lokasi"
+              placeholder=""
               className="w-full px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-600 dark:text-slate-300 cursor-not-allowed"
             />
           </div>
 
           {/* 3. KOTAK TANGGAL (DATEPICKER GORONG-GORONG STYLE) */}
-          <div className="relative">
+          <div className="relative datepicker-dropdown-container">
             <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
               <Calendar className="w-3.5 h-3.5 text-slate-500" />
               <span>Tanggal Drop <b className="text-rose-500">*</b></span>
@@ -429,51 +451,49 @@ export default function FormDropSulamView() {
 
         {/* 4. DUA KOTAK JENIS RIT (CD & FUSO) */}
         <div>
-          <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-2">
-            Jenis Rit Drop (Input Manual) <b className="text-rose-500">*</b>
+          <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-2 flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-emerald-600" />
+            <span>Jenis Rit <b className="text-rose-500">*</b></span>
           </label>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700">
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 max-w-md">
             {/* Rit CD */}
-            <div>
-              <div className="flex items-center justify-between text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                <span>Rit CD</span>
-                <span className="text-[10.5px] text-slate-400 font-mono">Colt Diesel</span>
-              </div>
+            <div className="p-2 sm:p-3 rounded-xl bg-emerald-500/5 dark:bg-emerald-500/10 border-2 border-emerald-500/40 dark:border-emerald-500/60 focus-within:border-emerald-500 transition-all text-center shadow-2xs">
+              <span className="text-[11px] font-extrabold text-emerald-800 dark:text-emerald-300 block mb-1">
+                Rit CD
+              </span>
               <input
                 type="number"
                 min="0"
                 value={ritCD}
                 onChange={(e) => setRitCD(e.target.value === '' ? '' : Math.max(0, parseInt(e.target.value, 10)))}
-                placeholder="0 Rit"
-                className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-600 text-sm font-bold text-slate-900 dark:text-slate-100 focus:border-emerald-600 focus:outline-hidden"
+                placeholder="0"
+                className="w-full text-center text-base sm:text-lg font-mono font-black text-slate-900 dark:text-white bg-transparent focus:outline-none py-1 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
               />
+              <span className="text-[10px] text-slate-400 block text-center mt-0.5 font-semibold">Rit</span>
             </div>
 
             {/* Rit Fuso */}
-            <div>
-              <div className="flex items-center justify-between text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                <span>Rit Fuso</span>
-                <span className="text-[10.5px] text-slate-400 font-mono">Fuso</span>
-              </div>
+            <div className="p-2 sm:p-3 rounded-xl bg-blue-500/5 dark:bg-blue-500/10 border-2 border-blue-500/40 dark:border-blue-500/60 focus-within:border-blue-500 transition-all text-center shadow-2xs">
+              <span className="text-[11px] font-extrabold text-blue-800 dark:text-blue-300 block mb-1">
+                Rit Fuso
+              </span>
               <input
                 type="number"
                 min="0"
                 value={ritFuso}
                 onChange={(e) => setRitFuso(e.target.value === '' ? '' : Math.max(0, parseInt(e.target.value, 10)))}
-                placeholder="0 Rit"
-                className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-600 text-sm font-bold text-slate-900 dark:text-slate-100 focus:border-emerald-600 focus:outline-hidden"
+                placeholder="0"
+                className="w-full text-center text-base sm:text-lg font-mono font-black text-slate-900 dark:text-white bg-transparent focus:outline-none py-1 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
               />
+              <span className="text-[10px] text-slate-400 block text-center mt-0.5 font-semibold">Rit</span>
             </div>
           </div>
-          <p className="text-[11px] text-slate-400 mt-1.5">
-            Total Drop Fisik: <b>{(Number(ritCD) || 0) + (Number(ritFuso) || 0)} Rit</b> (akan diakumulasikan ke kolom <b>dropReal</b> di tabel ListSulam).
-          </p>
         </div>
 
-        {/* 5. KOTAK KELAS BIBIT (MANUAL INPUT + NOTIFIKASI MISMATCH) */}
+        {/* 5. KOTAK KELAS BIBIT */}
         <div>
           <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center justify-between">
-            <span>Kelas Bibit (Input Manual)</span>
+            <span>Kelas Bibit</span>
             {bibitOrderedFromList && (
               <span className="text-[10.5px] text-slate-400 font-normal">
                 Order Terdaftar: <b>{bibitOrderedFromList}</b>
@@ -484,7 +504,7 @@ export default function FormDropSulamView() {
             type="text"
             value={kelasBibit}
             onChange={(e) => setKelasBibit(e.target.value)}
-            placeholder="Contoh: Sucker No. 2, No. 0 Pangkas 60cm, Crown No. 1..."
+            placeholder=""
             className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-600 text-xs font-semibold text-slate-900 dark:text-slate-100 focus:border-emerald-600 focus:outline-hidden"
           />
 
@@ -509,12 +529,12 @@ export default function FormDropSulamView() {
             {isSubmitting ? (
               <>
                 <RefreshCw className="w-4 h-4 animate-spin" />
-                <span>Menyimpan Drop...</span>
+                <span>Menyimpan...</span>
               </>
             ) : (
               <>
                 <Send className="w-4 h-4" />
-                <span>Simpan Transaksi Drop Sulam</span>
+                <span>Simpan</span>
               </>
             )}
           </button>
@@ -523,38 +543,28 @@ export default function FormDropSulamView() {
 
       {/* TABEL RIWAYAT TRANSAKSI FORM DROP SULAM */}
       <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-4">
-          <div>
-            <h3 className="text-sm font-extrabold text-slate-800 dark:text-slate-100 flex items-center gap-2">
-              <Truck className="w-4 h-4 text-emerald-600" />
-              <span>Riwayat Transaksi Form Drop Sulam</span>
-            </h3>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Daftar seluruh input transaksi kedatangan bibit sulam yang telah tersimpan.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={fetchDropHistory}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${isHistoryLoading ? 'animate-spin' : ''}`} />
-            <span>Segarkan</span>
-          </button>
+        <div className="border-b border-slate-100 dark:border-slate-800 pb-4">
+          <h3 className="text-sm font-extrabold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+            <Truck className="w-4 h-4 text-emerald-600" />
+            <span>Riwayat Transaksi Form Drop Sulam</span>
+          </h3>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Daftar seluruh input transaksi kedatangan bibit sulam yang telah tersimpan.
+          </p>
         </div>
 
         <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800">
-          <table className="w-full text-xs text-left">
+          <table className="w-full text-xs text-center">
             <thead className="bg-slate-50 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 font-extrabold border-b border-slate-200 dark:border-slate-700">
               <tr>
                 <th className="py-2.5 px-3 text-center w-12">No</th>
-                <th className="py-2.5 px-3">Lokasi</th>
+                <th className="py-2.5 px-3 text-center">Lokasi</th>
                 <th className="py-2.5 px-3 text-center">Wilayah</th>
                 <th className="py-2.5 px-3 text-center">Tanggal</th>
                 <th className="py-2.5 px-3 text-center">CD (Rit)</th>
                 <th className="py-2.5 px-3 text-center">Fuso (Rit)</th>
                 <th className="py-2.5 px-3 text-center">Total (Rit)</th>
-                <th className="py-2.5 px-3">Kelas Bibit</th>
+                <th className="py-2.5 px-3 text-center">Kelas Bibit</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -575,7 +585,7 @@ export default function FormDropSulamView() {
                 dropHistory.map((item, idx) => (
                   <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
                     <td className="py-2.5 px-3 text-center font-mono text-slate-400">{idx + 1}</td>
-                    <td className="py-2.5 px-3 font-bold text-slate-800 dark:text-slate-100">{item.lokasi}</td>
+                    <td className="py-2.5 px-3 text-center font-bold text-slate-800 dark:text-slate-100">{item.lokasi}</td>
                     <td className="py-2.5 px-3 text-center font-mono text-slate-600 dark:text-slate-300">{item.wilayah || '-'}</td>
                     <td className="py-2.5 px-3 text-center font-mono text-slate-500">
                       {item.tanggal ? new Date(item.tanggal).toISOString().slice(0, 10) : '-'}
@@ -585,7 +595,7 @@ export default function FormDropSulamView() {
                     <td className="py-2.5 px-3 text-center font-mono font-extrabold text-slate-900 dark:text-slate-100 bg-emerald-50/40 dark:bg-emerald-950/20">
                       {Number(item.cd || 0) + Number(item.fuso || 0)}
                     </td>
-                    <td className="py-2.5 px-3 font-medium text-slate-700 dark:text-slate-300">{item.kelasBibit || '-'}</td>
+                    <td className="py-2.5 px-3 text-center font-medium text-slate-700 dark:text-slate-300">{item.kelasBibit || '-'}</td>
                   </tr>
                 ))
               )}
