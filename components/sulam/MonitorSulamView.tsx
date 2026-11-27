@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Sprout,
   Search,
@@ -10,6 +10,7 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  Check,
   TrendingUp,
   Truck,
   CheckCircle2,
@@ -126,8 +127,21 @@ export default function MonitorSulamView() {
   const [selectedWilayah, setSelectedWilayah] = useState<string[]>([]);
   const [selectedProses, setSelectedProses] = useState<string>('ALL');
   const [isWilayahOpen, setIsWilayahOpen] = useState(false);
+  const [isProsesOpen, setIsProsesOpen] = useState(false);
+  const prosesDropdownRef = useRef<HTMLDivElement>(null);
   const [page, setPage] = useState(1);
   const pageSize = 50;
+
+  useEffect(() => {
+    if (!isProsesOpen) return;
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (prosesDropdownRef.current && !prosesDropdownRef.current.contains(e.target as Node)) {
+        setIsProsesOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, [isProsesOpen]);
 
   const fetchData = async (isSilent = false) => {
     try {
@@ -227,23 +241,65 @@ export default function MonitorSulamView() {
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Filter Keterangan Proses */}
+          {/* Filter Keterangan Proses (Custom Dropdown dengan Chevron Berputar & Outside Click) */}
           {prosesList.length > 0 && (
-            <select
-              value={selectedProses}
-              onChange={(e) => {
-                setSelectedProses(e.target.value);
-                setPage(1);
-              }}
-              className="px-3 py-2 rounded-xl text-xs font-bold bg-white/10 hover:bg-white/20 text-white backdrop-blur-xs transition-colors border border-white/20 cursor-pointer focus:outline-hidden"
-            >
-              <option value="ALL" className="text-slate-800">Semua Proses</option>
-              {prosesList.map((pr) => (
-                <option key={pr} value={pr} className="text-slate-800">
-                  {pr}
-                </option>
-              ))}
-            </select>
+            <div className="relative" ref={prosesDropdownRef}>
+              <button
+                type="button"
+                onClick={() => setIsProsesOpen((prev) => !prev)}
+                className="inline-flex items-center justify-between gap-2.5 min-w-[155px] px-3.5 py-2 rounded-xl text-xs font-bold bg-white/10 hover:bg-white/20 text-white backdrop-blur-xs transition-colors border border-white/20 cursor-pointer focus:outline-hidden"
+                aria-expanded={isProsesOpen}
+              >
+                <span className="truncate">
+                  {selectedProses === 'ALL' ? 'Semua Proses' : selectedProses}
+                </span>
+                <ChevronDown
+                  className={`w-4 h-4 shrink-0 text-white/90 transition-transform duration-200 ${
+                    isProsesOpen ? 'rotate-180' : 'rotate-0'
+                  }`}
+                />
+              </button>
+
+              {isProsesOpen && (
+                <div className="absolute right-0 top-full mt-1.5 w-56 max-h-64 overflow-y-auto rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-xl z-50 py-1 divide-y divide-slate-100 dark:divide-slate-800 animate-in fade-in zoom-in-95 duration-100">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedProses('ALL');
+                      setPage(1);
+                      setIsProsesOpen(false);
+                    }}
+                    className={`w-full px-3.5 py-2 text-left text-xs flex items-center justify-between gap-2 cursor-pointer transition-colors ${
+                      selectedProses === 'ALL'
+                        ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 font-bold'
+                        : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 font-medium'
+                    }`}
+                  >
+                    <span>Semua Proses</span>
+                    {selectedProses === 'ALL' && <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />}
+                  </button>
+                  {prosesList.map((pr) => (
+                    <button
+                      key={pr}
+                      type="button"
+                      onClick={() => {
+                        setSelectedProses(pr);
+                        setPage(1);
+                        setIsProsesOpen(false);
+                      }}
+                      className={`w-full px-3.5 py-2 text-left text-xs flex items-center justify-between gap-2 cursor-pointer transition-colors ${
+                        selectedProses === pr
+                          ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 font-bold'
+                          : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 font-medium'
+                      }`}
+                    >
+                      <span className="truncate">{pr}</span>
+                      {selectedProses === pr && <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           )}
 
           <a

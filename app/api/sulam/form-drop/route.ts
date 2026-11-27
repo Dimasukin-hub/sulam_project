@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { extractSessionUser } from '@/lib/sulamRoleHelper';
+import { hasCustomMenuOverride, hasMenuAccess } from '@/lib/menuAccess';
 
 export const dynamic = 'force-dynamic';
 
@@ -57,6 +59,22 @@ export async function GET(request: NextRequest) {
 // POST: Simpan transaksi drop sulam baru
 export async function POST(request: NextRequest) {
   try {
+    const sessionUser = extractSessionUser(request);
+    if (sessionUser) {
+      const legacyAllowed =
+        ['admin', 'super_admin', 'kepala_wilayah'].includes(sessionUser.role) &&
+        !hasCustomMenuOverride(sessionUser, 'sulam');
+      if (!legacyAllowed && !hasMenuAccess(sessionUser, 'sulam', 'form_drop_sulam')) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: 'Akses ditolak. Anda tidak memiliki hak akses untuk menginput Form Drop Sulam.',
+          },
+          { status: 403 }
+        );
+      }
+    }
+
     const body = await request.json();
     const { lokasi, wilayah, tanggal, cd, fuso, kelasBibit } = body;
 

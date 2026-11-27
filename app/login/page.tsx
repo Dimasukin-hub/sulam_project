@@ -5,6 +5,14 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
 import {
+  AllowedMenusMap,
+  getDefaultPortalRoute,
+  hasMenuAccess,
+  hasPortalAccess,
+  sanitizeAllowedMenus,
+} from '@/lib/menuAccess';
+import { parseSulamPathname } from '@/lib/portalRoutes';
+import {
   Lock,
   User as UserIcon,
   Eye,
@@ -35,29 +43,49 @@ function LoginContent() {
 
   useEffect(() => {
     const paramCallback = searchParams.get('callbackUrl');
+    const paramError = searchParams.get('error');
+
+    if (paramError === 'unauthorized') {
+      setErrorMsg('Akses ditolak. Portal Sulam hanya dapat diakses oleh Super Admin, User Wilayah, dan User Planting.');
+    }
 
     if (paramCallback && paramCallback !== '/') {
       setTargetUrl(paramCallback);
     } else if (typeof window !== 'undefined') {
       const stored = sessionStorage.getItem('ggf_active_portal');
-      if (stored && stored !== '/') {
+      if (stored && stored !== '/' && stored.startsWith('/sulam')) {
         setTargetUrl(stored);
       } else {
-        setTargetUrl('/gorong-gorong/monitor-gorong-gorong');
+        setTargetUrl('/sulam');
       }
     }
   }, [searchParams]);
 
-  // Redirect jika sudah login dan berhak mengakses Portal Sulam (Khusus Super Admin)
+  const getSulamRedirectByUser = (
+    authUser: { role?: string | null; allowedMenus?: AllowedMenusMap | null } | null,
+    requestedTarget: string
+  ): string | null => {
+    if (!authUser || !hasPortalAccess(authUser, 'sulam')) return null;
+    if (requestedTarget && requestedTarget.startsWith('/sulam') && requestedTarget !== '/sulam') {
+      const parsed = parseSulamPathname(requestedTarget);
+      if (hasMenuAccess(authUser, 'sulam', parsed.activeTab)) {
+        return requestedTarget;
+      }
+    }
+    return getDefaultPortalRoute(authUser, 'sulam');
+  };
+
+  // Redirect jika sudah login dan berhak mengakses Portal Sulam
   useEffect(() => {
     if (user) {
-      if (!isSuperAdmin) {
-        setErrorMsg('Akses ditolak. Modul Portal Sulam khusus untuk Super Administrator.');
+      const dest = getSulamRedirectByUser(user, targetUrl);
+      if (!dest) {
+        setErrorMsg('Akses ditolak. Akun Anda tidak memiliki izin akses menu pada Portal Sulam.');
         return;
       }
-      router.push(targetUrl && targetUrl !== '/' ? targetUrl : '/sulam/monitor-sulam');
+      router.push(dest);
     }
-  }, [user, isSuperAdmin, router, targetUrl]);
+  }, [user, router, targetUrl]);
 
   // Handle Submit Login Langsung
   const handleLoginSubmit = async (e: React.FormEvent) => {
@@ -74,19 +102,25 @@ function LoginContent() {
       setSuccessMsg('Login berhasil! Mengalihkan ke sistem...');
       setTimeout(() => {
         const stored = typeof window !== 'undefined' ? localStorage.getItem('ggf_auth_user') : null;
-        let storedRole = '';
+        let parsedUser: { role?: string; allowedMenus?: AllowedMenusMap | null } | null = null;
         if (stored) {
           try {
-            storedRole = JSON.parse(stored).role;
+            const raw = JSON.parse(stored);
+            parsedUser = {
+              role: raw.role,
+              allowedMenus: sanitizeAllowedMenus(raw.allowedMenus),
+            };
           } catch (e) {}
         }
 
-        if (storedRole !== 'super_admin') {
-          setErrorMsg('Akses ditolak. Modul Portal Sulam khusus untuk Super Administrator.');
+        const dest = getSulamRedirectByUser(parsedUser, targetUrl);
+        if (!dest) {
+          setSuccessMsg('');
+          setErrorMsg('Akses ditolak. Akun Anda tidak memiliki izin akses menu pada Portal Sulam.');
           return;
         }
 
-        router.push(targetUrl && targetUrl !== '/' ? targetUrl : '/sulam/monitor-sulam');
+        router.push(dest);
       }, 350);
     } else {
       setErrorMsg(res.message || 'Username atau kata sandi tidak sesuai.');

@@ -6,27 +6,25 @@ import { PwaRegister } from '@/components/PwaRegister';
 
 export const metadata: Metadata = {
   title: {
-    default: 'Portal Monitoring Sulam',
-    template: '%s | Portal Monitoring Sulam',
+    default: 'Field Establishment • Sulam',
+    template: '%s | Field Establishment',
   },
-  description: 'Portal Monitoring & Order Sulam Bibit Nanas • Great Giant Foods',
+  description: 'Field Establishment • Portal Monitoring & Order Sulam Bibit Nanas PG1',
   manifest: '/manifest.json',
-  applicationName: 'Portal Monitoring Sulam',
+  applicationName: 'Field Establishment',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
-    title: 'Portal Monitoring Sulam',
+    title: 'Field Establishment',
   },
   icons: {
     icon: [
-      { url: '/icons/icon-192x192.png', sizes: '192x192', type: 'image/png' },
-      { url: '/icons/icon-512x512.png', sizes: '512x512', type: 'image/png' },
-      { url: '/assets/Favicon.ico', type: 'image/x-icon' },
+      { url: '/assets/logo.png', type: 'image/png' },
       { url: '/favicon.ico', type: 'image/x-icon' },
     ],
-    shortcut: '/icons/icon-192x192.png',
+    shortcut: '/favicon.ico',
     apple: [
-      { url: '/icons/apple-touch-icon.png', sizes: '180x180', type: 'image/png' },
+      { url: '/assets/logo.png', type: 'image/png' },
     ],
   },
 };
@@ -49,7 +47,7 @@ export default function RootLayout({
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-        <meta name="apple-mobile-web-app-title" content="field establishment" />
+        <meta name="apple-mobile-web-app-title" content="Field Establishment" />
       </head>
       <body className="font-sans min-h-full bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 antialiased selection:bg-emerald-500/30 selection:text-emerald-200 transition-colors duration-200">
         <AuthProvider>

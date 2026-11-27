@@ -1,25 +1,32 @@
 import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
+import { getDefaultPortalRoute, sanitizeAllowedMenus } from '@/lib/menuAccess';
 
 export default async function HomePage() {
   const cookieStore = await cookies();
   const session = cookieStore.get('ggf_session');
 
-  // Jika belum login, langsung tampilkan login Super Admin
+  // Jika belum login, arahkan ke halaman login Portal Sulam
   if (!session || !session.value) {
-    redirect('/login?role=super_admin&callbackUrl=/sulam/monitor-sulam');
+    redirect('/login?callbackUrl=/sulam');
   }
 
+  let sessionUser: { role?: string; allowedMenus?: ReturnType<typeof sanitizeAllowedMenus> } | null = null;
   try {
-    const user = JSON.parse(decodeURIComponent(session.value));
-    if (user.role !== 'super_admin') {
-      redirect('/login?role=super_admin&error=unauthorized');
-    }
+    const parsed = JSON.parse(decodeURIComponent(session.value));
+    sessionUser = {
+      role: parsed?.role || '',
+      allowedMenus: sanitizeAllowedMenus(parsed?.allowedMenus),
+    };
   } catch {
-    redirect('/login?role=super_admin&callbackUrl=/sulam/monitor-sulam');
+    redirect('/login?callbackUrl=/sulam');
   }
 
-  // Jika sudah login sebagai Super Admin, langsung masuk ke Dashboard Sulam
-  redirect('/sulam/monitor-sulam');
+  const dest = getDefaultPortalRoute(sessionUser, 'sulam');
+  if (dest) {
+    redirect(dest);
+  }
+
+  redirect('/login?error=unauthorized');
 }
 

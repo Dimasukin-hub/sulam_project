@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { extractSessionRole, extractSessionUser } from '@/lib/sulamRoleHelper';
+import { hasCustomMenuOverride, hasMenuAccess } from '@/lib/menuAccess';
 
 export const dynamic = 'force-dynamic';
 
@@ -102,6 +104,31 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { lokasi, wilayah, usia, kelasBibit, ritFuso, ritCD, keterangan, pemohonName, pemohonRole } = body;
+
+    const sessionUser = extractSessionUser(request);
+    if (sessionUser) {
+      const allowedCustom =
+        hasCustomMenuOverride(sessionUser, 'sulam') &&
+        hasMenuAccess(sessionUser, 'sulam', 'form_order_sulam');
+      const allowedDefaultOrder = ['user_wilayah', 'user', 'admin', 'super_admin'].includes(sessionUser.role);
+      if (!allowedCustom && !allowedDefaultOrder) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: 'Akses ditolak. Anda tidak memiliki hak akses mengajukan Form Order Sulam.',
+          },
+          { status: 403 }
+        );
+      }
+    } else if (pemohonRole && !['user_wilayah', 'user', 'admin', 'super_admin'].includes(pemohonRole)) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: 'Akses ditolak. Hanya User Wilayah dan Administrator yang berhak mengajukan Form Order Sulam.',
+        },
+        { status: 403 }
+      );
+    }
 
     if (!lokasi || !lokasi.trim()) {
       return NextResponse.json(
@@ -255,18 +282,7 @@ export async function PATCH(request: NextRequest) {
     const { id, status, approverName, approverRole, catatan } = body;
 
     // Verifikasi Hak Akses: Hanya User Planting dan Administrator yang berhak melakukan approval / workflow update
-    const cookieHeader = request.headers.get('cookie') || '';
-    const match = cookieHeader.match(/ggf_session=([^;]+)/);
-    let sessionRole = '';
-    if (match) {
-      try {
-        const decoded = decodeURIComponent(match[1]);
-        const sessUser = JSON.parse(decoded);
-        sessionRole = sessUser.role || '';
-      } catch (e) {
-        // ignore
-      }
-    }
+    const sessionRole = extractSessionRole(request);
 
     const effectiveRole = sessionRole || approverRole || '';
     const allowedRoles = ['user_planting', 'admin', 'super_admin'];

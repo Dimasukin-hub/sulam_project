@@ -16,30 +16,42 @@ import MasterSpekBibitSulamView from '@/components/sulam/MasterSpekBibitSulamVie
 import UserManagementView from '@/components/UserManagementView';
 import { useAuth } from '@/components/AuthProvider';
 import {
+  getDefaultPortalRoute,
+  hasMenuAccess,
+  hasPortalAccess,
+} from '@/lib/menuAccess';
+import {
   parseSulamPathname,
   getSulamRoute,
   SULAM_ROUTES,
 } from '@/lib/portalRoutes';
 
 export default function SulamPage() {
-  const { user, isAdmin, isSuperAdmin, isUserPlanting, isUserWilayah, isKepalaWilayah, isLoading: authLoading } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
+  const canAccessSulam = Boolean(user && hasPortalAccess(user, 'sulam'));
+  const canAccessMonitorSulam = hasMenuAccess(user, 'sulam', 'monitor_sulam');
+  const canAccessOrderSulam = hasMenuAccess(user, 'sulam', 'form_order_sulam');
+  const canAccessDropSulam = hasMenuAccess(user, 'sulam', 'form_drop_sulam');
+  const canAccessRealisasiSulam = hasMenuAccess(user, 'sulam', 'form_realisasi_sulam');
+  const canAccessMasterSulam = hasMenuAccess(user, 'sulam', 'master_data');
+  const canAccessUserMgmtSulam = hasMenuAccess(user, 'sulam', 'user_management');
 
-  // Guard login Super Admin
+  // Guard login Portal Sulam (sesuai role atau kustomisasi menu oleh Super Admin)
   useEffect(() => {
     if (!authLoading) {
       if (!user) {
         router.replace(
-          `/login?role=super_admin&callbackUrl=${encodeURIComponent(
-            pathname || SULAM_ROUTES.monitor
+          `/login?callbackUrl=${encodeURIComponent(
+            pathname || '/sulam'
           )}`
         );
-      } else if (!isSuperAdmin) {
-        router.replace('/login?role=super_admin&error=unauthorized');
+      } else if (!canAccessSulam) {
+        router.replace('/login?error=unauthorized');
       }
     }
-  }, [authLoading, user, isSuperAdmin, pathname, router]);
+  }, [authLoading, user, canAccessSulam, pathname, router]);
 
   // Inisialisasi awal berdasarkan URL saat ini
   const initial = parseSulamPathname(pathname || '/sulam');
@@ -51,36 +63,15 @@ export default function SulamPage() {
     if (!pathname) return;
     const parsed = parseSulamPathname(pathname);
 
-    // 1. Jika User Wilayah (Mandor): hanya boleh akses form order sulam
-    if (!authLoading && user && !isAdmin && !isSuperAdmin && !isUserPlanting && !isKepalaWilayah && isUserWilayah) {
-      if (
-        pathname === '/sulam' ||
-        pathname === SULAM_ROUTES.monitor ||
-        parsed.activeTab === 'monitor_sulam' ||
-        parsed.activeTab === 'master_data' ||
-        parsed.activeTab === 'user_management'
-      ) {
-        setActiveTab('form_order_sulam');
-        router.replace(SULAM_ROUTES.formOrder);
-        return;
-      }
-    }
-
-    // 2. Jika User Planting: default ke form order sulam jika membuka root /sulam
-    if (!authLoading && user && isUserPlanting && !isAdmin && !isSuperAdmin) {
-      if (pathname === '/sulam' || parsed.activeTab === 'user_management') {
-        setActiveTab('form_order_sulam');
-        router.replace(SULAM_ROUTES.formOrder);
-        return;
-      }
-    }
-
-    // 3. Jika Kepala Wilayah: dapat akses semua menu sulam kecuali manajemen user
-    if (!authLoading && user && isKepalaWilayah) {
-      if (parsed.activeTab === 'user_management') {
-        setActiveTab('monitor_sulam');
-        router.replace(SULAM_ROUTES.monitor);
-        return;
+    if (!authLoading && user && canAccessSulam) {
+      if (pathname === '/sulam' || !hasMenuAccess(user, 'sulam', parsed.activeTab)) {
+        const fallbackRoute = getDefaultPortalRoute(user, 'sulam');
+        if (fallbackRoute && fallbackRoute !== pathname) {
+          const fallbackParsed = parseSulamPathname(fallbackRoute);
+          setActiveTab(fallbackParsed.activeTab);
+          router.replace(fallbackRoute);
+          return;
+        }
       }
     }
 
@@ -95,7 +86,7 @@ export default function SulamPage() {
     if (typeof window !== 'undefined') {
       sessionStorage.setItem('ggf_active_portal', pathname);
     }
-  }, [pathname, router, authLoading, user, isAdmin, isSuperAdmin, isUserPlanting, isUserWilayah, isKepalaWilayah]);
+  }, [pathname, router, authLoading, user, canAccessSulam]);
 
   // Dukung tombol Back / Forward browser tanpa reload
   useEffect(() => {
@@ -132,14 +123,14 @@ export default function SulamPage() {
     }
   };
 
-  // Tampilan loading / pemeriksaan hak akses Super Admin
-  if (authLoading || !user || !isSuperAdmin) {
+  // Tampilan loading / pemeriksaan hak akses Portal Sulam
+  if (authLoading || !user || !canAccessSulam) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950">
         <div className="flex flex-col items-center gap-3">
           <Loader2 className="w-8 h-8 text-teal-600 animate-spin" />
           <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-            {!user ? 'Memeriksa sesi pengguna...' : !isSuperAdmin ? 'Akses khusus Super Administrator. Mengalihkan...' : 'Memeriksa hak akses pengguna...'}
+            {!user ? 'Memeriksa sesi pengguna...' : !canAccessSulam ? 'Anda tidak memiliki akses Portal Sulam. Mengalihkan...' : 'Memeriksa hak akses pengguna...'}
           </span>
         </div>
       </div>
@@ -157,43 +148,55 @@ export default function SulamPage() {
         onMasterDataSubTabChange={handleMasterDataSubTabChange}
       />
 
-      {/* Main Body Content - Full Width Margin Rapi Sampai Samping */}
+      {/* Main Body Content - Offset Mini Sidebar di Desktop */}
+      <div className="flex-1 md:pl-16 flex flex-col w-full min-w-0">
       <main className="flex-1 p-2 sm:p-4 md:p-5 pb-20 sm:pb-8 space-y-4 sm:space-y-6 w-full max-w-full overflow-x-hidden">
-        <div className={activeTab === 'monitor_sulam' ? 'space-y-6 animate-in fade-in duration-150' : 'hidden'}>
-          <MonitorSulamView />
-        </div>
-        <div className={(activeTab === 'form_order_sulam' || activeTab === 'form_input') ? 'space-y-6 animate-in fade-in duration-150' : 'hidden'}>
-          <FormOrderSulamView />
-        </div>
-        <div className={activeTab === 'form_drop_sulam' ? 'space-y-6 animate-in fade-in duration-150' : 'hidden'}>
-          <FormDropSulamView />
-        </div>
-        <div className={activeTab === 'form_realisasi_sulam' ? 'space-y-6 animate-in fade-in duration-150' : 'hidden'}>
-          <FormRealisasiSulamView />
-        </div>
-        <div className={(activeTab === 'master_data' || activeTab === 'master_data_sulam') ? 'space-y-6 animate-in fade-in duration-150' : 'hidden'}>
-          <div className={masterDataSubTab === 'master_status_lokasi' ? 'block' : 'hidden'}>
-            <MasterStatusLokasiView hideUploadAndTemplate={true} portal="sulam" />
+        {canAccessMonitorSulam && (
+          <div className={activeTab === 'monitor_sulam' ? 'space-y-6 animate-in fade-in duration-150' : 'hidden'}>
+            <MonitorSulamView />
           </div>
-          <div className={masterDataSubTab === 'master_order' ? 'block' : 'hidden'}>
-            <MasterOrderSulamView />
+        )}
+        {canAccessOrderSulam && (
+          <div className={(activeTab === 'form_order_sulam' || activeTab === 'form_input') ? 'space-y-6 animate-in fade-in duration-150' : 'hidden'}>
+            <FormOrderSulamView />
           </div>
-          <div className={masterDataSubTab === 'master_drop' ? 'block' : 'hidden'}>
-            <MasterDropBibitSulamView />
+        )}
+        {canAccessDropSulam && (
+          <div className={activeTab === 'form_drop_sulam' ? 'space-y-6 animate-in fade-in duration-150' : 'hidden'}>
+            <FormDropSulamView />
           </div>
-          <div className={masterDataSubTab === 'master_real' ? 'block' : 'hidden'}>
-            <MasterRealSulamView />
+        )}
+        {canAccessRealisasiSulam && (
+          <div className={activeTab === 'form_realisasi_sulam' ? 'space-y-6 animate-in fade-in duration-150' : 'hidden'}>
+            <FormRealisasiSulamView />
           </div>
-          <div className={masterDataSubTab === 'master_spek' ? 'block' : 'hidden'}>
-            <MasterSpekBibitSulamView />
+        )}
+        {canAccessMasterSulam && (
+          <div className={(activeTab === 'master_data' || activeTab === 'master_data_sulam') ? 'space-y-6 animate-in fade-in duration-150' : 'hidden'}>
+            <div className={masterDataSubTab === 'master_status_lokasi' ? 'block' : 'hidden'}>
+              <MasterStatusLokasiView hideUploadAndTemplate={true} portal="sulam" />
+            </div>
+            <div className={masterDataSubTab === 'master_order' ? 'block' : 'hidden'}>
+              <MasterOrderSulamView />
+            </div>
+            <div className={masterDataSubTab === 'master_drop' ? 'block' : 'hidden'}>
+              <MasterDropBibitSulamView />
+            </div>
+            <div className={masterDataSubTab === 'master_real' ? 'block' : 'hidden'}>
+              <MasterRealSulamView />
+            </div>
+            <div className={masterDataSubTab === 'master_spek' ? 'block' : 'hidden'}>
+              <MasterSpekBibitSulamView />
+            </div>
           </div>
-        </div>
-        {isAdmin && (
+        )}
+        {canAccessUserMgmtSulam && (
           <div className={activeTab === 'user_management' ? 'space-y-6 animate-in fade-in duration-150' : 'hidden'}>
-            <UserManagementView />
+            <UserManagementView portal="sulam" />
           </div>
         )}
       </main>
+      </div>
     </div>
   );
 }
