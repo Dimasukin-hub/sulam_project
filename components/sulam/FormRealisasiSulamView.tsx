@@ -16,8 +16,13 @@ import {
   Users,
   Sprout,
   XCircle,
+  Pencil,
+  Trash2,
+  X,
 } from 'lucide-react';
 import { useAuth } from '@/components/AuthProvider';
+import DeleteConfirmationModal from '@/components/DeleteConfirmationModal';
+import SulamSelectDropdown from '@/components/sulam/SulamSelectDropdown';
 
 interface MasterLokasiItem {
   lokasi: string;
@@ -54,6 +59,17 @@ export default function FormRealisasiSulamView() {
   const [formMessage, setFormMessage] = useState<{ type: 'success' | 'error' | 'warning'; text: string } | null>(null);
   const [realHistory, setRealHistory] = useState<any[]>([]);
   const [isHistoryLoading, setIsHistoryLoading] = useState(true);
+
+  // Edit & Delete states
+  const [editingItem, setEditingItem] = useState<any | null>(null);
+  const [editLokasi, setEditLokasi] = useState('');
+  const [editWilayah, setEditWilayah] = useState('');
+  const [editTanggal, setEditTanggal] = useState('');
+  const [editJumlahTk, setEditJumlahTk] = useState<number | ''>('');
+  const [editJumlahBibit, setEditJumlahBibit] = useState<number | ''>('');
+  const [isEditSaving, setIsEditSaving] = useState(false);
+  const [deletingItem, setDeletingItem] = useState<any | null>(null);
+  const [isDeletingItem, setIsDeletingItem] = useState(false);
 
   // 1. Fetch lokasi options
   useEffect(() => {
@@ -195,10 +211,108 @@ export default function FormRealisasiSulamView() {
       setJumlahTk('');
       setJumlahBibit('');
       fetchRealHistory();
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('sulam_updated'));
+        window.dispatchEvent(new CustomEvent('master_data_updated'));
+      }
     } catch (err: any) {
       setFormMessage({ type: 'error', text: err.message || 'Terjadi kesalahan sistem.' });
     } finally {
       setIsSubmitting(false);
+    }
+  }
+
+  function openEditModal(item: any) {
+    setEditingItem(item);
+    setEditLokasi(item.lokasi || '');
+    setEditWilayah(item.wilayah || '');
+    setEditTanggal(item.tanggal ? new Date(item.tanggal).toISOString().slice(0, 10) : '');
+    setEditJumlahTk(item.jumlahTk ?? 0);
+    setEditJumlahBibit(item.jumlahBibit ?? 0);
+  }
+
+  async function handleEditLokasiChange(lok: string) {
+    const clean = lok.trim().toUpperCase();
+    setEditLokasi(clean);
+    const matched = lokasiList.find((l) => l.lokasi === clean);
+    if (matched?.wilayah) setEditWilayah(matched.wilayah);
+    if (!clean) return;
+    try {
+      const res = await fetch(`/api/sulam/lookup-lokasi?lokasi=${encodeURIComponent(clean)}`);
+      const json = await res.json();
+      if (json.success && json.data?.wilayah) {
+        setEditWilayah(json.data.wilayah);
+      }
+    } catch {
+      // ignore lookup error
+    }
+  }
+
+  async function handleSaveEdit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editingItem || !editLokasi.trim() || !editTanggal) return;
+    const nBibit = Number(editJumlahBibit) || 0;
+    if (nBibit <= 0) {
+      alert('Jumlah bibit harus lebih dari 0!');
+      return;
+    }
+
+    try {
+      setIsEditSaving(true);
+      const res = await fetch('/api/sulam/form-realisasi', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: editingItem.id,
+          lokasi: editLokasi,
+          wilayah: editWilayah,
+          tanggal: editTanggal,
+          jumlahTk: Number(editJumlahTk) || 0,
+          jumlahBibit: nBibit,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        alert(json.message || 'Gagal menyimpan perubahan Form Realisasi Sulam.');
+        return;
+      }
+      setFormMessage({ type: 'success', text: json.message || 'Data Form Realisasi Sulam berhasil diperbarui.' });
+      setEditingItem(null);
+      fetchRealHistory();
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('sulam_updated'));
+        window.dispatchEvent(new CustomEvent('master_data_updated'));
+      }
+    } catch {
+      alert('Terjadi kesalahan koneksi saat memperbarui data realisasi.');
+    } finally {
+      setIsEditSaving(false);
+    }
+  }
+
+  async function handleConfirmDelete() {
+    if (!deletingItem) return;
+    try {
+      setIsDeletingItem(true);
+      const res = await fetch(`/api/sulam/form-realisasi?id=${deletingItem.id}`, {
+        method: 'DELETE',
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        alert(json.message || 'Gagal menghapus data Form Realisasi Sulam.');
+        return;
+      }
+      setFormMessage({ type: 'success', text: json.message || 'Data Form Realisasi Sulam berhasil dihapus.' });
+      setDeletingItem(null);
+      fetchRealHistory();
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('sulam_updated'));
+        window.dispatchEvent(new CustomEvent('master_data_updated'));
+      }
+    } catch {
+      alert('Terjadi kesalahan koneksi saat menghapus data realisasi.');
+    } finally {
+      setIsDeletingItem(false);
     }
   }
 
@@ -503,19 +617,20 @@ export default function FormRealisasiSulamView() {
                 <th className="py-2.5 px-3 text-center">Jumlah TK</th>
                 <th className="py-2.5 px-3 text-center">Jumlah Bibit (Btg)</th>
                 <th className="py-2.5 px-3 text-center">Estimasi Rit</th>
+                <th className="py-2.5 px-3 text-center w-36">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {isHistoryLoading ? (
                 <tr>
-                  <td colSpan={7} className="py-8 text-center text-slate-400">
+                  <td colSpan={8} className="py-8 text-center text-slate-400">
                     <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-2 text-teal-600" />
                     <span>Memuat riwayat transaksi realisasi...</span>
                   </td>
                 </tr>
               ) : realHistory.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-8 text-center text-slate-400">
+                  <td colSpan={8} className="py-8 text-center text-slate-400">
                     Belum ada riwayat realisasi sulam yang tersimpan.
                   </td>
                 </tr>
@@ -537,6 +652,28 @@ export default function FormRealisasiSulamView() {
                     <td className="py-2.5 px-3 text-center font-mono font-bold text-slate-600 dark:text-slate-400">
                       ~{Math.max(1, Math.ceil(Number(item.jumlahBibit || 0) / 2000))} Rit
                     </td>
+                    <td className="py-2.5 px-3 text-center">
+                      <div className="inline-flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => openEditModal(item)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-amber-200 dark:border-amber-800/60 bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/60 text-amber-700 dark:text-amber-300 font-bold text-[11px] transition-colors cursor-pointer"
+                          title="Edit Realisasi Sulam"
+                        >
+                          <Pencil className="w-3 h-3" />
+                          <span>Edit</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDeletingItem(item)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-rose-200 dark:border-rose-800/60 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/60 text-rose-700 dark:text-rose-300 font-bold text-[11px] transition-colors cursor-pointer"
+                          title="Hapus Realisasi Sulam"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                          <span>Hapus</span>
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 ))
               )}
@@ -544,6 +681,137 @@ export default function FormRealisasiSulamView() {
           </table>
         </div>
       </div>
+
+      {/* MODAL EDIT REALISASI SULAM */}
+      {editingItem && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in"
+          onClick={() => !isEditSaving && setEditingItem(null)}
+        >
+          <div
+            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl max-w-md w-full p-5 space-y-4 animate-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <h3 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
+                <Pencil className="w-4 h-4 text-amber-600" />
+                <span>Edit Form Realisasi Sulam</span>
+              </h3>
+              <button
+                type="button"
+                disabled={isEditSaving}
+                onClick={() => setEditingItem(null)}
+                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEdit} className="space-y-3 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Lokasi *</label>
+                  <SulamSelectDropdown
+                    value={editLokasi}
+                    options={Array.from(
+                      new Set([
+                        ...(editLokasi ? [editLokasi] : []),
+                        ...lokasiList.map((l) => l.lokasi),
+                      ])
+                    )}
+                    onChange={handleEditLokasiChange}
+                    placeholder="Pilih Lokasi"
+                    searchable
+                    searchPlaceholder="Cari lokasi..."
+                    accent="teal"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Wilayah</label>
+                  <input
+                    type="text"
+                    value={editWilayah}
+                    readOnly
+                    className="w-full px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 font-semibold text-slate-600 dark:text-slate-300 cursor-not-allowed"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Tanggal Realisasi *</label>
+                <input
+                  type="date"
+                  value={editTanggal}
+                  onChange={(e) => setEditTanggal(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-semibold text-slate-900 dark:text-slate-100"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Jumlah TK (Orang)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={editJumlahTk}
+                    onChange={(e) =>
+                      setEditJumlahTk(e.target.value === '' ? '' : Math.max(0, parseInt(e.target.value, 10) || 0))
+                    }
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-bold text-slate-900 dark:text-slate-100 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Jumlah Bibit (Batang) *</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={editJumlahBibit}
+                    onChange={(e) =>
+                      setEditJumlahBibit(e.target.value === '' ? '' : Math.max(0, parseInt(e.target.value, 10) || 0))
+                    }
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-bold text-slate-900 dark:text-slate-100 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  type="button"
+                  disabled={isEditSaving}
+                  onClick={() => setEditingItem(null)}
+                  className="px-3.5 py-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 font-semibold cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={isEditSaving}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white font-bold cursor-pointer"
+                >
+                  {isEditSaving && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+                  <span>{isEditSaving ? 'Menyimpan...' : 'Simpan Perubahan'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL KONFIRMASI HAPUS REALISASI SULAM */}
+      <DeleteConfirmationModal
+        isOpen={Boolean(deletingItem)}
+        onClose={() => !isDeletingItem && setDeletingItem(null)}
+        onConfirm={handleConfirmDelete}
+        title="Hapus Data Realisasi Sulam"
+        itemLabel={
+          deletingItem
+            ? `${deletingItem.lokasi} (${Number(deletingItem.jumlahBibit || 0).toLocaleString('id-ID')} btg)`
+            : undefined
+        }
+        isDeleting={isDeletingItem}
+      />
     </div>
   );
 }

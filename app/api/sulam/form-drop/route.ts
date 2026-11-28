@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { extractSessionUser } from '@/lib/sulamRoleHelper';
-import { hasCustomMenuOverride, hasMenuAccess } from '@/lib/menuAccess';
+import {
+  applyListSulamDelta,
+  extractRecordId,
+  isAuthorizedForSulamForm,
+  resolveSulamSpekRit,
+} from '@/lib/sulamFormSync';
 
 export const dynamic = 'force-dynamic';
 
@@ -59,20 +63,19 @@ export async function GET(request: NextRequest) {
 // POST: Simpan transaksi drop sulam baru
 export async function POST(request: NextRequest) {
   try {
-    const sessionUser = extractSessionUser(request);
-    if (sessionUser) {
-      const legacyAllowed =
-        ['admin', 'super_admin', 'kepala_wilayah'].includes(sessionUser.role) &&
-        !hasCustomMenuOverride(sessionUser, 'sulam');
-      if (!legacyAllowed && !hasMenuAccess(sessionUser, 'sulam', 'form_drop_sulam')) {
-        return NextResponse.json(
-          {
-            success: false,
-            message: 'Akses ditolak. Anda tidak memiliki hak akses untuk menginput Form Drop Sulam.',
-          },
-          { status: 403 }
-        );
-      }
+    const { allowed } = isAuthorizedForSulamForm(request, 'form_drop_sulam', [
+      'admin',
+      'super_admin',
+      'kepala_wilayah',
+    ]);
+    if (!allowed) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: 'Akses ditolak. Anda tidak memiliki hak akses untuk menginput Form Drop Sulam.',
+        },
+        { status: 403 }
+      );
     }
 
     const body = await request.json();
@@ -114,18 +117,8 @@ export async function POST(request: NextRequest) {
 
     // 2. Simpan baris baru ke MasterDataDropBibitSulam (menambah record baru)
     try {
-      let stdRit = 2000;
-      let fusoRit = 3500;
-      if (kelasBibit && kelasBibit.trim()) {
-        const spek = await prisma.masterSpekBibitSulam.findFirst({
-          where: { spekBBSulamBtg: { equals: kelasBibit.trim(), mode: 'insensitive' } },
-        });
-        if (spek) {
-          if (spek.cd > 0) stdRit = spek.cd;
-          if (spek.fuso > 0) fusoRit = spek.fuso;
-        }
-      }
-      const btgTotal = (nCD * stdRit) + (nFuso * fusoRit);
+      const { stdRitCD: stdRit, stdRitFuso: fusoRit } = await resolveSulamSpekRit(kelasBibit);
+      const btgTotal = nCD * stdRit + nFuso * fusoRit;
       const jenisUnit = nCD > 0 && nFuso > 0 ? 'CD + FUSO' : nFuso > 0 ? 'FUSO' : 'CD';
 
       await prisma.masterDataDropBibitSulam.create({
@@ -146,49 +139,12 @@ export async function POST(request: NextRequest) {
 
     // 3. Update kolom dropReal, dropTotal, dropDev, dropPct di tabel ListSulam
     try {
-      const existingList = await prisma.listSulam.findUnique({
-        where: { lokasi: cleanLokasi },
+      await applyListSulamDelta({
+        lokasi: cleanLokasi,
+        wilayah: cleanWilayah,
+        dropRitDelta: totalRit,
+        spekBibit: kelasBibit?.trim() || undefined,
       });
-
-      if (existingList) {
-        const newDropReal = (existingList.dropReal || 0) + totalRit;
-        const newDropTotal = (existingList.permintaanRealRit || 0) + newDropReal;
-        const permintaanRit = existingList.permintaanRit || 0;
-        const dropDev = permintaanRit - newDropTotal;
-        const dropPct = permintaanRit > 0 ? Number(((newDropTotal / permintaanRit) * 100).toFixed(1)) : 0;
-
-        await prisma.listSulam.update({
-          where: { lokasi: cleanLokasi },
-          data: {
-            wilayah: cleanWilayah || existingList.wilayah,
-            dropReal: newDropReal,
-            dropTotal: newDropTotal,
-            dropDev,
-            dropPct,
-          },
-        });
-      } else {
-        const mLoc = await prisma.masterStatusLokasi.findUnique({
-          where: { lokasi: cleanLokasi },
-        });
-        await prisma.listSulam.create({
-          data: {
-            lokasi: cleanLokasi,
-            wilayah: cleanWilayah || mLoc?.strucPlant,
-            jenisBibit: mLoc?.jenis,
-            kelasBibit: mLoc?.kelas,
-            tglRawat: mLoc?.tglRawat,
-            tglStdForcing: mLoc?.forcingStd,
-            tglFProd: mLoc?.forcingGabungan || mLoc?.forcing2027 || mLoc?.forcingProd2026,
-            umurForcing: mLoc?.umurFProd,
-            dropReal: totalRit,
-            dropTotal: totalRit,
-            dropDev: -totalRit,
-            dropPct: 0,
-            spekBibit: kelasBibit?.trim() || null,
-          },
-        });
-      }
     } catch (e) {
       console.warn('Sync to ListSulam error:', e);
     }
@@ -202,6 +158,231 @@ export async function POST(request: NextRequest) {
     console.error('Error in POST /api/sulam/form-drop:', error);
     return NextResponse.json(
       { success: false, message: 'Gagal menyimpan form drop sulam.' },
+      { status: 500 }
+    );
+  }
+}
+
+// PUT: Edit data transaksi Form Drop Sulam dan sinkronkan ke MasterDataDropBibitSulam & ListSulam
+export async function PUT(request: NextRequest) {
+  try {
+    const { allowed } = isAuthorizedForSulamForm(request, 'form_drop_sulam', [
+      'admin',
+      'super_admin',
+      'kepala_wilayah',
+    ]);
+    if (!allowed) {
+      return NextResponse.json(
+        { success: false, message: 'Akses ditolak untuk mengubah Form Drop Sulam.' },
+        { status: 403 }
+      );
+    }
+
+    const body = await request.json();
+    const { id, lokasi, wilayah, tanggal, cd, fuso, kelasBibit } = body;
+
+    if (!id) {
+      return NextResponse.json({ success: false, message: 'ID drop wajib disertakan!' }, { status: 400 });
+    }
+    if (!lokasi || !String(lokasi).trim()) {
+      return NextResponse.json({ success: false, message: 'Lokasi wajib dipilih!' }, { status: 400 });
+    }
+
+    const nCD = Math.max(0, parseInt(cd, 10) || 0);
+    const nFuso = Math.max(0, parseInt(fuso, 10) || 0);
+    const newTotalRit = nCD + nFuso;
+    if (newTotalRit <= 0) {
+      return NextResponse.json(
+        { success: false, message: 'Minimal salah satu jenis rit (CD atau Fuso) harus lebih dari 0!' },
+        { status: 400 }
+      );
+    }
+
+    const existing = await prisma.formDropSulam.findUnique({ where: { id: Number(id) } });
+    if (!existing) {
+      return NextResponse.json({ success: false, message: 'Data form drop sulam tidak ditemukan.' }, { status: 404 });
+    }
+
+    const cleanLokasi = String(lokasi).trim().toUpperCase();
+    const cleanWilayah = wilayah ? String(wilayah).trim().toUpperCase() : null;
+    const newDropDate = tanggal ? new Date(tanggal) : existing.tanggal || new Date();
+    const cleanKelas = kelasBibit?.trim() || null;
+
+    const oldTotalRit = (existing.cd || 0) + (existing.fuso || 0);
+    const oldJenisUnit =
+      existing.cd > 0 && existing.fuso > 0 ? 'CD + FUSO' : existing.fuso > 0 ? 'FUSO' : 'CD';
+    const newJenisUnit = nCD > 0 && nFuso > 0 ? 'CD + FUSO' : nFuso > 0 ? 'FUSO' : 'CD';
+
+    const { stdRitCD: newStdRit, stdRitFuso: newFusoRit } = await resolveSulamSpekRit(cleanKelas);
+    const newBtgTotal = nCD * newStdRit + nFuso * newFusoRit;
+
+    const updated = await prisma.formDropSulam.update({
+      where: { id: existing.id },
+      data: {
+        lokasi: cleanLokasi,
+        wilayah: cleanWilayah,
+        tanggal: newDropDate,
+        cd: nCD,
+        fuso: nFuso,
+        kelasBibit: cleanKelas,
+      },
+    });
+
+    try {
+      let masterRow = await prisma.masterDataDropBibitSulam.findFirst({
+        where: {
+          lokasi: existing.lokasi,
+          jumlahRit: oldTotalRit,
+          jenisUnit: oldJenisUnit,
+          ...(existing.tanggal ? { tanggal: existing.tanggal } : {}),
+        },
+        orderBy: { id: 'desc' },
+      });
+      if (!masterRow) {
+        masterRow = await prisma.masterDataDropBibitSulam.findFirst({
+          where: { lokasi: existing.lokasi, jumlahRit: oldTotalRit },
+          orderBy: { id: 'desc' },
+        });
+      }
+      if (masterRow) {
+        await prisma.masterDataDropBibitSulam.update({
+          where: { id: masterRow.id },
+          data: {
+            lokasi: cleanLokasi,
+            tanggal: newDropDate,
+            bibitOrdered: cleanKelas,
+            stdRit: newStdRit,
+            jumlahRit: newTotalRit,
+            hasilBtg: newBtgTotal,
+            jenisUnit: newJenisUnit,
+            statusDrop: 'V',
+          },
+        });
+      } else {
+        await prisma.masterDataDropBibitSulam.create({
+          data: {
+            lokasi: cleanLokasi,
+            tanggal: newDropDate,
+            bibitOrdered: cleanKelas,
+            stdRit: newStdRit,
+            jumlahRit: newTotalRit,
+            hasilBtg: newBtgTotal,
+            jenisUnit: newJenisUnit,
+            statusDrop: 'V',
+          },
+        });
+      }
+    } catch (e) {
+      console.warn('Sync edit to MasterDataDropBibitSulam error:', e);
+    }
+
+    try {
+      if (cleanLokasi === existing.lokasi) {
+        await applyListSulamDelta({
+          lokasi: cleanLokasi,
+          wilayah: cleanWilayah,
+          dropRitDelta: newTotalRit - oldTotalRit,
+        });
+      } else {
+        await applyListSulamDelta({
+          lokasi: existing.lokasi,
+          dropRitDelta: -oldTotalRit,
+        });
+        await applyListSulamDelta({
+          lokasi: cleanLokasi,
+          wilayah: cleanWilayah,
+          dropRitDelta: newTotalRit,
+        });
+      }
+    } catch (e) {
+      console.warn('Sync edit drop to ListSulam error:', e);
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: `Data Form Drop Sulam lokasi ${cleanLokasi} berhasil diperbarui (${newTotalRit} Rit).`,
+      data: updated,
+    });
+  } catch (error: any) {
+    console.error('Error in PUT /api/sulam/form-drop:', error);
+    return NextResponse.json(
+      { success: false, message: 'Gagal memperbarui data form drop sulam.' },
+      { status: 500 }
+    );
+  }
+}
+
+// DELETE: Hapus transaksi Form Drop Sulam dan sinkronkan ulang MasterDataDropBibitSulam & ListSulam
+export async function DELETE(request: NextRequest) {
+  try {
+    const { allowed } = isAuthorizedForSulamForm(request, 'form_drop_sulam', [
+      'admin',
+      'super_admin',
+      'kepala_wilayah',
+    ]);
+    if (!allowed) {
+      return NextResponse.json(
+        { success: false, message: 'Akses ditolak untuk menghapus Form Drop Sulam.' },
+        { status: 403 }
+      );
+    }
+
+    const id = await extractRecordId(request);
+    if (!id) {
+      return NextResponse.json({ success: false, message: 'ID drop wajib disertakan!' }, { status: 400 });
+    }
+
+    const existing = await prisma.formDropSulam.findUnique({ where: { id } });
+    if (!existing) {
+      return NextResponse.json({ success: false, message: 'Data form drop sulam tidak ditemukan.' }, { status: 404 });
+    }
+
+    const oldTotalRit = (existing.cd || 0) + (existing.fuso || 0);
+    const oldJenisUnit =
+      existing.cd > 0 && existing.fuso > 0 ? 'CD + FUSO' : existing.fuso > 0 ? 'FUSO' : 'CD';
+
+    await prisma.formDropSulam.delete({ where: { id } });
+
+    try {
+      let masterRow = await prisma.masterDataDropBibitSulam.findFirst({
+        where: {
+          lokasi: existing.lokasi,
+          jumlahRit: oldTotalRit,
+          jenisUnit: oldJenisUnit,
+          ...(existing.tanggal ? { tanggal: existing.tanggal } : {}),
+        },
+        orderBy: { id: 'desc' },
+      });
+      if (!masterRow) {
+        masterRow = await prisma.masterDataDropBibitSulam.findFirst({
+          where: { lokasi: existing.lokasi, jumlahRit: oldTotalRit },
+          orderBy: { id: 'desc' },
+        });
+      }
+      if (masterRow) {
+        await prisma.masterDataDropBibitSulam.delete({ where: { id: masterRow.id } });
+      }
+    } catch (e) {
+      console.warn('Sync delete to MasterDataDropBibitSulam error:', e);
+    }
+
+    try {
+      await applyListSulamDelta({
+        lokasi: existing.lokasi,
+        dropRitDelta: -oldTotalRit,
+      });
+    } catch (e) {
+      console.warn('Sync delete drop to ListSulam error:', e);
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: `Data Form Drop Sulam lokasi ${existing.lokasi} (${oldTotalRit} Rit) berhasil dihapus dan ListSulam disinkronkan.`,
+    });
+  } catch (error: any) {
+    console.error('Error in DELETE /api/sulam/form-drop:', error);
+    return NextResponse.json(
+      { success: false, message: 'Gagal menghapus data form drop sulam.' },
       { status: 500 }
     );
   }

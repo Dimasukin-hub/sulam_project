@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { extractSessionRole, extractSessionUser } from '@/lib/sulamRoleHelper';
-import { hasCustomMenuOverride, hasMenuAccess } from '@/lib/menuAccess';
+import { extractSessionRole } from '@/lib/sulamRoleHelper';
+import {
+  applyListSulamDelta,
+  extractRecordId,
+  isAuthorizedForSulamForm,
+  resolveSulamSpekRit,
+} from '@/lib/sulamFormSync';
 
 export const dynamic = 'force-dynamic';
 
@@ -105,26 +110,17 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { lokasi, wilayah, usia, kelasBibit, ritFuso, ritCD, keterangan, pemohonName, pemohonRole } = body;
 
-    const sessionUser = extractSessionUser(request);
-    if (sessionUser) {
-      const allowedCustom =
-        hasCustomMenuOverride(sessionUser, 'sulam') &&
-        hasMenuAccess(sessionUser, 'sulam', 'form_order_sulam');
-      const allowedDefaultOrder = ['user_wilayah', 'user', 'admin', 'super_admin'].includes(sessionUser.role);
-      if (!allowedCustom && !allowedDefaultOrder) {
-        return NextResponse.json(
-          {
-            success: false,
-            message: 'Akses ditolak. Anda tidak memiliki hak akses mengajukan Form Order Sulam.',
-          },
-          { status: 403 }
-        );
-      }
-    } else if (pemohonRole && !['user_wilayah', 'user', 'admin', 'super_admin'].includes(pemohonRole)) {
+    const { allowed } = isAuthorizedForSulamForm(
+      request,
+      'form_order_sulam',
+      ['user_wilayah', 'user', 'admin', 'super_admin'],
+      pemohonRole
+    );
+    if (!allowed) {
       return NextResponse.json(
         {
           success: false,
-          message: 'Akses ditolak. Hanya User Wilayah dan Administrator yang berhak mengajukan Form Order Sulam.',
+          message: 'Akses ditolak. Anda tidak memiliki hak akses mengajukan Form Order Sulam.',
         },
         { status: 403 }
       );
@@ -147,6 +143,8 @@ export async function POST(request: NextRequest) {
     const cleanLokasi = lokasi.trim().toUpperCase();
     const cleanWilayah = wilayah ? wilayah.trim().toUpperCase() : null;
     const nomorTiket = await generateNomorTiket();
+    const nRitCD = Number(ritCD) || 0;
+    const nRitFuso = Number(ritFuso) || 0;
 
     const created = await prisma.formTiketOrderSulam.create({
       data: {
@@ -155,8 +153,8 @@ export async function POST(request: NextRequest) {
         wilayah: cleanWilayah,
         usia: usia !== null && usia !== undefined ? Number(usia) : null,
         kelasBibit: kelasBibit.trim(),
-        ritFuso: Number(ritFuso) || 0,
-        ritCD: Number(ritCD) || 0,
+        ritFuso: nRitFuso,
+        ritCD: nRitCD,
         keterangan: keterangan?.trim() || null,
         status: 'DIAJUKAN',
         pemohonName: pemohonName || 'User Wilayah',
@@ -165,26 +163,9 @@ export async function POST(request: NextRequest) {
     });
 
     // 1. Ambil spesifikasi kapasitas rit CD & Fuso dari MasterSpekBibitSulam
-    let stdRitCD = 2000;
-    let stdRitFuso = 3500;
-    try {
-      const spek = await prisma.masterSpekBibitSulam.findFirst({
-        where: {
-          spekBBSulamBtg: { equals: kelasBibit.trim(), mode: 'insensitive' },
-        },
-      });
-      if (spek) {
-        if (spek.cd > 0) stdRitCD = spek.cd;
-        if (spek.fuso > 0) stdRitFuso = spek.fuso;
-      }
-    } catch (e) {
-      console.warn('Fallback spek kapasitas rit:', e);
-    }
-
-    const nRitCD = Number(ritCD) || 0;
-    const nRitFuso = Number(ritFuso) || 0;
+    const { stdRitCD, stdRitFuso } = await resolveSulamSpekRit(kelasBibit);
     const totalRit = nRitCD + nRitFuso;
-    const btgPerRit = (nRitCD * stdRitCD) + (nRitFuso * stdRitFuso);
+    const btgPerRit = nRitCD * stdRitCD + nRitFuso * stdRitFuso;
     const orderDate = new Date();
 
     // 2. Tambah baris baru di MasterDataOrderSulam (menambah record baru, bukan menimpa)
@@ -208,55 +189,15 @@ export async function POST(request: NextRequest) {
 
     // 3. Update / Sinkronisasi ke tabel database ListSulam
     try {
-      const existingList = await prisma.listSulam.findUnique({
-        where: { lokasi: cleanLokasi },
+      await applyListSulamDelta({
+        lokasi: cleanLokasi,
+        wilayah: cleanWilayah,
+        orderRitDelta: totalRit,
+        orderJumlahDelta: btgPerRit,
+        spekBibit: kelasBibit.trim(),
+        keteranganProses: keterangan?.trim() || null,
+        tglOrder: orderDate,
       });
-
-      if (existingList) {
-        const newJumlah = (existingList.permintaanJumlah || 0) + btgPerRit;
-        const newRit = (existingList.permintaanRit || 0) + totalRit;
-        const dropTotal = existingList.dropTotal || 0;
-        const dropDev = newRit - dropTotal;
-        const dropPct = newRit > 0 ? Number(((dropTotal / newRit) * 100).toFixed(1)) : 0;
-
-        await prisma.listSulam.update({
-          where: { lokasi: cleanLokasi },
-          data: {
-            wilayah: cleanWilayah || existingList.wilayah,
-            tglOrder: orderDate,
-            permintaanJumlah: newJumlah,
-            permintaanRit: newRit,
-            dropDev,
-            dropPct,
-            spekBibit: kelasBibit.trim() || existingList.spekBibit,
-            keteranganProses: keterangan?.trim() || existingList.keteranganProses,
-          },
-        });
-      } else {
-        const mLoc = await prisma.masterStatusLokasi.findUnique({
-          where: { lokasi: cleanLokasi },
-        });
-
-        await prisma.listSulam.create({
-          data: {
-            lokasi: cleanLokasi,
-            wilayah: cleanWilayah || mLoc?.strucPlant,
-            jenisBibit: mLoc?.jenis,
-            kelasBibit: mLoc?.kelas,
-            tglRawat: mLoc?.tglRawat,
-            tglStdForcing: mLoc?.forcingStd,
-            tglFProd: mLoc?.forcingGabungan || mLoc?.forcing2027 || mLoc?.forcingProd2026,
-            tglOrder: orderDate,
-            umurForcing: mLoc?.umurFProd,
-            permintaanJumlah: btgPerRit,
-            permintaanRit: totalRit,
-            dropDev: totalRit,
-            dropPct: 0,
-            spekBibit: kelasBibit.trim(),
-            keteranganProses: keterangan?.trim() || null,
-          },
-        });
-      }
     } catch (e) {
       console.warn('Sync to ListSulam error:', e);
     }
@@ -335,6 +276,241 @@ export async function PATCH(request: NextRequest) {
     console.error('Error in PATCH /api/sulam/form-order:', error);
     return NextResponse.json(
       { success: false, message: 'Gagal memperbarui status formulir order sulam.' },
+      { status: 500 }
+    );
+  }
+}
+
+// PUT: Edit data tiket Form Order Sulam dan sinkronkan ke MasterDataOrderSulam & ListSulam
+export async function PUT(request: NextRequest) {
+  try {
+    const { allowed } = isAuthorizedForSulamForm(request, 'form_order_sulam', [
+      'user_wilayah',
+      'user',
+      'admin',
+      'super_admin',
+    ]);
+    if (!allowed) {
+      return NextResponse.json(
+        { success: false, message: 'Akses ditolak untuk mengubah Form Order Sulam.' },
+        { status: 403 }
+      );
+    }
+
+    const body = await request.json();
+    const { id, lokasi, wilayah, usia, kelasBibit, ritFuso, ritCD, keterangan } = body;
+
+    if (!id) {
+      return NextResponse.json({ success: false, message: 'ID tiket wajib disertakan!' }, { status: 400 });
+    }
+    if (!lokasi || !String(lokasi).trim()) {
+      return NextResponse.json({ success: false, message: 'Lokasi wajib dipilih!' }, { status: 400 });
+    }
+    if (!kelasBibit || !String(kelasBibit).trim()) {
+      return NextResponse.json({ success: false, message: 'Kelas bibit wajib diisi!' }, { status: 400 });
+    }
+
+    const existing = await prisma.formTiketOrderSulam.findUnique({ where: { id: Number(id) } });
+    if (!existing) {
+      return NextResponse.json({ success: false, message: 'Tiket order sulam tidak ditemukan.' }, { status: 404 });
+    }
+
+    const cleanLokasi = String(lokasi).trim().toUpperCase();
+    const cleanWilayah = wilayah ? String(wilayah).trim().toUpperCase() : null;
+    const cleanKelas = String(kelasBibit).trim();
+    const cleanKet = keterangan ? String(keterangan).trim() : null;
+    const nRitCD = Math.max(0, Number(ritCD) || 0);
+    const nRitFuso = Math.max(0, Number(ritFuso) || 0);
+
+    const oldSpec = await resolveSulamSpekRit(existing.kelasBibit);
+    const oldRit = (existing.ritCD || 0) + (existing.ritFuso || 0);
+    const oldBtg = (existing.ritCD || 0) * oldSpec.stdRitCD + (existing.ritFuso || 0) * oldSpec.stdRitFuso;
+
+    const newSpec = await resolveSulamSpekRit(cleanKelas);
+    const newRit = nRitCD + nRitFuso;
+    const newBtg = nRitCD * newSpec.stdRitCD + nRitFuso * newSpec.stdRitFuso;
+
+    const updated = await prisma.formTiketOrderSulam.update({
+      where: { id: existing.id },
+      data: {
+        lokasi: cleanLokasi,
+        wilayah: cleanWilayah,
+        usia: usia !== null && usia !== undefined ? Number(usia) : null,
+        kelasBibit: cleanKelas,
+        ritCD: nRitCD,
+        ritFuso: nRitFuso,
+        keterangan: cleanKet,
+      },
+    });
+
+    // Sinkronkan baris pasangan di MasterDataOrderSulam
+    try {
+      let masterRow = await prisma.masterDataOrderSulam.findFirst({
+        where: {
+          lokasi: existing.lokasi,
+          rit: oldRit,
+          jumlah: oldBtg,
+          spekBibit: existing.kelasBibit,
+        },
+        orderBy: { id: 'desc' },
+      });
+      if (!masterRow) {
+        masterRow = await prisma.masterDataOrderSulam.findFirst({
+          where: { lokasi: existing.lokasi, rit: oldRit, jumlah: oldBtg },
+          orderBy: { id: 'desc' },
+        });
+      }
+      if (masterRow) {
+        await prisma.masterDataOrderSulam.update({
+          where: { id: masterRow.id },
+          data: {
+            lokasi: cleanLokasi,
+            wilayah: cleanWilayah,
+            spekBibit: cleanKelas,
+            rit: newRit,
+            jumlah: newBtg,
+            keteranganProses: cleanKet,
+          },
+        });
+      } else {
+        await prisma.masterDataOrderSulam.create({
+          data: {
+            lokasi: cleanLokasi,
+            wilayah: cleanWilayah,
+            tanggalOrder: existing.createdAt,
+            spekBibit: cleanKelas,
+            jumlah: newBtg,
+            rit: newRit,
+            realRit: 0,
+            manual: 0,
+            keteranganProses: cleanKet,
+          },
+        });
+      }
+    } catch (e) {
+      console.warn('Sync edit to MasterDataOrderSulam error:', e);
+    }
+
+    // Sinkronkan delta ke ListSulam
+    try {
+      if (cleanLokasi === existing.lokasi) {
+        await applyListSulamDelta({
+          lokasi: cleanLokasi,
+          wilayah: cleanWilayah,
+          orderRitDelta: newRit - oldRit,
+          orderJumlahDelta: newBtg - oldBtg,
+          spekBibit: cleanKelas,
+          keteranganProses: cleanKet,
+        });
+      } else {
+        await applyListSulamDelta({
+          lokasi: existing.lokasi,
+          orderRitDelta: -oldRit,
+          orderJumlahDelta: -oldBtg,
+          recomputeOrderDate: true,
+        });
+        await applyListSulamDelta({
+          lokasi: cleanLokasi,
+          wilayah: cleanWilayah,
+          orderRitDelta: newRit,
+          orderJumlahDelta: newBtg,
+          spekBibit: cleanKelas,
+          keteranganProses: cleanKet,
+          tglOrder: existing.createdAt,
+        });
+      }
+    } catch (e) {
+      console.warn('Sync edit to ListSulam error:', e);
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: `Tiket ${updated.nomorTiket} berhasil diperbarui.`,
+      data: updated,
+    });
+  } catch (error: any) {
+    console.error('Error in PUT /api/sulam/form-order:', error);
+    return NextResponse.json(
+      { success: false, message: 'Gagal memperbarui tiket form order sulam.' },
+      { status: 500 }
+    );
+  }
+}
+
+// DELETE: Hapus tiket Form Order Sulam dan sinkronkan ke MasterDataOrderSulam & ListSulam
+export async function DELETE(request: NextRequest) {
+  try {
+    const { allowed } = isAuthorizedForSulamForm(request, 'form_order_sulam', [
+      'user_wilayah',
+      'user',
+      'admin',
+      'super_admin',
+    ]);
+    if (!allowed) {
+      return NextResponse.json(
+        { success: false, message: 'Akses ditolak untuk menghapus Form Order Sulam.' },
+        { status: 403 }
+      );
+    }
+
+    const id = await extractRecordId(request);
+    if (!id) {
+      return NextResponse.json({ success: false, message: 'ID tiket wajib disertakan!' }, { status: 400 });
+    }
+
+    const existing = await prisma.formTiketOrderSulam.findUnique({ where: { id } });
+    if (!existing) {
+      return NextResponse.json({ success: false, message: 'Tiket order sulam tidak ditemukan.' }, { status: 404 });
+    }
+
+    const oldSpec = await resolveSulamSpekRit(existing.kelasBibit);
+    const oldRit = (existing.ritCD || 0) + (existing.ritFuso || 0);
+    const oldBtg = (existing.ritCD || 0) * oldSpec.stdRitCD + (existing.ritFuso || 0) * oldSpec.stdRitFuso;
+
+    await prisma.formTiketOrderSulam.delete({ where: { id } });
+
+    try {
+      let masterRow = await prisma.masterDataOrderSulam.findFirst({
+        where: {
+          lokasi: existing.lokasi,
+          rit: oldRit,
+          jumlah: oldBtg,
+          spekBibit: existing.kelasBibit,
+        },
+        orderBy: { id: 'desc' },
+      });
+      if (!masterRow) {
+        masterRow = await prisma.masterDataOrderSulam.findFirst({
+          where: { lokasi: existing.lokasi, rit: oldRit, jumlah: oldBtg },
+          orderBy: { id: 'desc' },
+        });
+      }
+      if (masterRow) {
+        await prisma.masterDataOrderSulam.delete({ where: { id: masterRow.id } });
+      }
+    } catch (e) {
+      console.warn('Sync delete to MasterDataOrderSulam error:', e);
+    }
+
+    try {
+      await applyListSulamDelta({
+        lokasi: existing.lokasi,
+        orderRitDelta: -oldRit,
+        orderJumlahDelta: -oldBtg,
+        recomputeOrderDate: true,
+      });
+    } catch (e) {
+      console.warn('Sync delete to ListSulam error:', e);
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: `Tiket ${existing.nomorTiket} berhasil dihapus dan data Master Order serta ListSulam telah disinkronkan.`,
+    });
+  } catch (error: any) {
+    console.error('Error in DELETE /api/sulam/form-order:', error);
+    return NextResponse.json(
+      { success: false, message: 'Gagal menghapus tiket form order sulam.' },
       { status: 500 }
     );
   }

@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { extractSessionUser } from '@/lib/sulamRoleHelper';
-import { hasCustomMenuOverride, hasMenuAccess } from '@/lib/menuAccess';
+import {
+  applyListSulamDelta,
+  extractRecordId,
+  isAuthorizedForSulamForm,
+  resolveLocationRealSpec,
+} from '@/lib/sulamFormSync';
 
 export const dynamic = 'force-dynamic';
 
@@ -58,20 +62,19 @@ export async function GET(request: NextRequest) {
 // POST: Simpan transaksi realisasi sulam baru
 export async function POST(request: NextRequest) {
   try {
-    const sessionUser = extractSessionUser(request);
-    if (sessionUser) {
-      const legacyAllowed =
-        ['admin', 'super_admin', 'kepala_wilayah'].includes(sessionUser.role) &&
-        !hasCustomMenuOverride(sessionUser, 'sulam');
-      if (!legacyAllowed && !hasMenuAccess(sessionUser, 'sulam', 'form_realisasi_sulam')) {
-        return NextResponse.json(
-          {
-            success: false,
-            message: 'Akses ditolak. Anda tidak memiliki hak akses untuk menginput Form Realisasi Sulam.',
-          },
-          { status: 403 }
-        );
-      }
+    const { allowed } = isAuthorizedForSulamForm(request, 'form_realisasi_sulam', [
+      'admin',
+      'super_admin',
+      'kepala_wilayah',
+    ]);
+    if (!allowed) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: 'Akses ditolak. Anda tidak memiliki hak akses untuk menginput Form Realisasi Sulam.',
+        },
+        { status: 403 }
+      );
     }
 
     const body = await request.json();
@@ -110,24 +113,7 @@ export async function POST(request: NextRequest) {
     });
 
     // 2. Simpan baris baru ke tabel MasterDataRealSulam secara otomatis
-    let bibitOrdered = '-';
-    let stdRit = 2000;
-    try {
-      const ls = await prisma.listSulam.findUnique({
-        where: { lokasi: cleanLokasi },
-      });
-      if (ls && ls.spekBibit) {
-        bibitOrdered = ls.spekBibit;
-        const spek = await prisma.masterSpekBibitSulam.findFirst({
-          where: { spekBBSulamBtg: { equals: bibitOrdered.trim(), mode: 'insensitive' } },
-        });
-        if (spek && spek.cd > 0) stdRit = spek.cd;
-      }
-    } catch (e) {
-      console.warn('Lookup spek bibit for real sulam error:', e);
-    }
-
-    // Hitung rit planted: dibulatkan ke atas jika ada sisa (CEILING)
+    const { bibitOrdered, stdRit } = await resolveLocationRealSpec(cleanLokasi);
     const ritPlanted = Math.max(1, Math.ceil(nBibit / stdRit));
 
     try {
@@ -148,48 +134,12 @@ export async function POST(request: NextRequest) {
 
     // 3. Update tabel ListSulam: menambah sulamReal dan mengurangi sulamSaldo
     try {
-      const existingList = await prisma.listSulam.findUnique({
-        where: { lokasi: cleanLokasi },
+      await applyListSulamDelta({
+        lokasi: cleanLokasi,
+        wilayah: cleanWilayah,
+        sulamRealDelta: ritPlanted,
+        recomputeLastSulamDate: true,
       });
-
-      if (existingList) {
-        const newSulamReal = (existingList.sulamReal || 0) + ritPlanted;
-        const dropTotal = existingList.dropTotal || 0;
-        const sulamManual = existingList.sulamManual || 0;
-        const newSulamSaldo = Math.max(0, dropTotal - newSulamReal - sulamManual);
-        const sulamPct = dropTotal > 0 ? Number((((newSulamReal + sulamManual) / dropTotal) * 100).toFixed(1)) : 0;
-
-        await prisma.listSulam.update({
-          where: { lokasi: cleanLokasi },
-          data: {
-            wilayah: cleanWilayah || existingList.wilayah,
-            sulamReal: newSulamReal,
-            sulamSaldo: newSulamSaldo,
-            sulamPct,
-            sulamLastDate: realDate,
-          },
-        });
-      } else {
-        const mLoc = await prisma.masterStatusLokasi.findUnique({
-          where: { lokasi: cleanLokasi },
-        });
-        await prisma.listSulam.create({
-          data: {
-            lokasi: cleanLokasi,
-            wilayah: cleanWilayah || mLoc?.strucPlant,
-            jenisBibit: mLoc?.jenis,
-            kelasBibit: mLoc?.kelas,
-            tglRawat: mLoc?.tglRawat,
-            tglStdForcing: mLoc?.forcingStd,
-            tglFProd: mLoc?.forcingGabungan || mLoc?.forcing2027 || mLoc?.forcingProd2026,
-            umurForcing: mLoc?.umurFProd,
-            sulamReal: ritPlanted,
-            sulamSaldo: 0,
-            sulamPct: 0,
-            sulamLastDate: realDate,
-          },
-        });
-      }
     } catch (e) {
       console.warn('Sync to ListSulam error:', e);
     }
@@ -203,6 +153,228 @@ export async function POST(request: NextRequest) {
     console.error('Error in POST /api/sulam/form-realisasi:', error);
     return NextResponse.json(
       { success: false, message: 'Gagal menyimpan form realisasi sulam.' },
+      { status: 500 }
+    );
+  }
+}
+
+// PUT: Edit transaksi Form Realisasi Sulam dan sinkronkan ke MasterDataRealSulam & ListSulam
+export async function PUT(request: NextRequest) {
+  try {
+    const { allowed } = isAuthorizedForSulamForm(request, 'form_realisasi_sulam', [
+      'admin',
+      'super_admin',
+      'kepala_wilayah',
+    ]);
+    if (!allowed) {
+      return NextResponse.json(
+        { success: false, message: 'Akses ditolak untuk mengubah Form Realisasi Sulam.' },
+        { status: 403 }
+      );
+    }
+
+    const body = await request.json();
+    const { id, lokasi, wilayah, tanggal, jumlahTk, jumlahBibit } = body;
+
+    if (!id) {
+      return NextResponse.json({ success: false, message: 'ID realisasi wajib disertakan!' }, { status: 400 });
+    }
+    if (!lokasi || !String(lokasi).trim()) {
+      return NextResponse.json({ success: false, message: 'Lokasi wajib dipilih!' }, { status: 400 });
+    }
+
+    const nBibit = Math.max(0, parseInt(jumlahBibit, 10) || 0);
+    const nTK = Math.max(0, parseInt(jumlahTk, 10) || 0);
+    if (nBibit <= 0) {
+      return NextResponse.json({ success: false, message: 'Jumlah bibit harus lebih dari 0!' }, { status: 400 });
+    }
+
+    const existing = await prisma.formRealisasiSulam.findUnique({ where: { id: Number(id) } });
+    if (!existing) {
+      return NextResponse.json(
+        { success: false, message: 'Data form realisasi sulam tidak ditemukan.' },
+        { status: 404 }
+      );
+    }
+
+    const cleanLokasi = String(lokasi).trim().toUpperCase();
+    const cleanWilayah = wilayah ? String(wilayah).trim().toUpperCase() : null;
+    const newRealDate = tanggal ? new Date(tanggal) : existing.tanggal || new Date();
+
+    const oldSpec = await resolveLocationRealSpec(existing.lokasi);
+    const oldRitPlanted = Math.max(1, Math.ceil((existing.jumlahBibit || 0) / oldSpec.stdRit));
+
+    const newSpec = await resolveLocationRealSpec(cleanLokasi);
+    const newRitPlanted = Math.max(1, Math.ceil(nBibit / newSpec.stdRit));
+
+    const updated = await prisma.formRealisasiSulam.update({
+      where: { id: existing.id },
+      data: {
+        lokasi: cleanLokasi,
+        wilayah: cleanWilayah,
+        tanggal: newRealDate,
+        jumlahTk: nTK,
+        jumlahBibit: nBibit,
+      },
+    });
+
+    try {
+      let masterRow = await prisma.masterDataRealSulam.findFirst({
+        where: {
+          lokasi: existing.lokasi,
+          hasilBtg: existing.jumlahBibit,
+          ...(existing.tanggal ? { tanggal: existing.tanggal } : {}),
+        },
+        orderBy: { id: 'desc' },
+      });
+      if (!masterRow) {
+        masterRow = await prisma.masterDataRealSulam.findFirst({
+          where: { lokasi: existing.lokasi, hasilBtg: existing.jumlahBibit },
+          orderBy: { id: 'desc' },
+        });
+      }
+      if (masterRow) {
+        await prisma.masterDataRealSulam.update({
+          where: { id: masterRow.id },
+          data: {
+            lokasi: cleanLokasi,
+            tanggal: newRealDate,
+            hasilBtg: nBibit,
+            bibitOrdered: newSpec.bibitOrdered,
+            stdRit: newSpec.stdRit,
+            ritPlanted: newRitPlanted,
+            keterangan: `Realisasi Sulam (TK: ${nTK}, Bibit: ${nBibit})`,
+          },
+        });
+      } else {
+        await prisma.masterDataRealSulam.create({
+          data: {
+            lokasi: cleanLokasi,
+            tanggal: newRealDate,
+            hasilBtg: nBibit,
+            bibitOrdered: newSpec.bibitOrdered,
+            stdRit: newSpec.stdRit,
+            ritPlanted: newRitPlanted,
+            keterangan: `Realisasi Sulam (TK: ${nTK}, Bibit: ${nBibit})`,
+          },
+        });
+      }
+    } catch (e) {
+      console.warn('Sync edit to MasterDataRealSulam error:', e);
+    }
+
+    try {
+      if (cleanLokasi === existing.lokasi) {
+        await applyListSulamDelta({
+          lokasi: cleanLokasi,
+          wilayah: cleanWilayah,
+          sulamRealDelta: newRitPlanted - oldRitPlanted,
+          recomputeLastSulamDate: true,
+        });
+      } else {
+        await applyListSulamDelta({
+          lokasi: existing.lokasi,
+          sulamRealDelta: -oldRitPlanted,
+          recomputeLastSulamDate: true,
+        });
+        await applyListSulamDelta({
+          lokasi: cleanLokasi,
+          wilayah: cleanWilayah,
+          sulamRealDelta: newRitPlanted,
+          recomputeLastSulamDate: true,
+        });
+      }
+    } catch (e) {
+      console.warn('Sync edit realisasi to ListSulam error:', e);
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: `Data Form Realisasi Sulam lokasi ${cleanLokasi} berhasil diperbarui (${nBibit.toLocaleString('id-ID')} btg / ~${newRitPlanted} Rit).`,
+      data: updated,
+    });
+  } catch (error: any) {
+    console.error('Error in PUT /api/sulam/form-realisasi:', error);
+    return NextResponse.json(
+      { success: false, message: 'Gagal memperbarui data form realisasi sulam.' },
+      { status: 500 }
+    );
+  }
+}
+
+// DELETE: Hapus transaksi Form Realisasi Sulam dan sinkronkan ulang MasterDataRealSulam & ListSulam
+export async function DELETE(request: NextRequest) {
+  try {
+    const { allowed } = isAuthorizedForSulamForm(request, 'form_realisasi_sulam', [
+      'admin',
+      'super_admin',
+      'kepala_wilayah',
+    ]);
+    if (!allowed) {
+      return NextResponse.json(
+        { success: false, message: 'Akses ditolak untuk menghapus Form Realisasi Sulam.' },
+        { status: 403 }
+      );
+    }
+
+    const id = await extractRecordId(request);
+    if (!id) {
+      return NextResponse.json({ success: false, message: 'ID realisasi wajib disertakan!' }, { status: 400 });
+    }
+
+    const existing = await prisma.formRealisasiSulam.findUnique({ where: { id } });
+    if (!existing) {
+      return NextResponse.json(
+        { success: false, message: 'Data form realisasi sulam tidak ditemukan.' },
+        { status: 404 }
+      );
+    }
+
+    const oldSpec = await resolveLocationRealSpec(existing.lokasi);
+    const oldRitPlanted = Math.max(1, Math.ceil((existing.jumlahBibit || 0) / oldSpec.stdRit));
+
+    await prisma.formRealisasiSulam.delete({ where: { id } });
+
+    try {
+      let masterRow = await prisma.masterDataRealSulam.findFirst({
+        where: {
+          lokasi: existing.lokasi,
+          hasilBtg: existing.jumlahBibit,
+          ...(existing.tanggal ? { tanggal: existing.tanggal } : {}),
+        },
+        orderBy: { id: 'desc' },
+      });
+      if (!masterRow) {
+        masterRow = await prisma.masterDataRealSulam.findFirst({
+          where: { lokasi: existing.lokasi, hasilBtg: existing.jumlahBibit },
+          orderBy: { id: 'desc' },
+        });
+      }
+      if (masterRow) {
+        await prisma.masterDataRealSulam.delete({ where: { id: masterRow.id } });
+      }
+    } catch (e) {
+      console.warn('Sync delete to MasterDataRealSulam error:', e);
+    }
+
+    try {
+      await applyListSulamDelta({
+        lokasi: existing.lokasi,
+        sulamRealDelta: -oldRitPlanted,
+        recomputeLastSulamDate: true,
+      });
+    } catch (e) {
+      console.warn('Sync delete realisasi to ListSulam error:', e);
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: `Data Form Realisasi Sulam lokasi ${existing.lokasi} (${existing.jumlahBibit.toLocaleString('id-ID')} btg) berhasil dihapus dan ListSulam disinkronkan.`,
+    });
+  } catch (error: any) {
+    console.error('Error in DELETE /api/sulam/form-realisasi:', error);
+    return NextResponse.json(
+      { success: false, message: 'Gagal menghapus data form realisasi sulam.' },
       { status: 500 }
     );
   }
