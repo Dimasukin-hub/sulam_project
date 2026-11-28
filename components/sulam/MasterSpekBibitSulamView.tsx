@@ -121,12 +121,14 @@ export default function MasterSpekBibitSulamView() {
             <span className="p-1.5 rounded-lg bg-white/20 backdrop-blur-xs">
               <Layers className="w-4 h-4 text-white" />
             </span>
-            <h2 className="text-base sm:text-lg font-black tracking-tight flex items-center gap-2">
-              <span>Master Data Spek Bibit Sulam</span>
-              <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-white/20 text-white border border-white/30">
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-base sm:text-lg font-black tracking-tight">
+                Master Data Spek Bibit Sulam
+              </h2>
+              <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-white/20 text-white border border-white/30 whitespace-nowrap shrink-0">
                 {totalCount} Data
               </span>
-            </h2>
+            </div>
           </div>
           <p className="text-xs text-white/80 max-w-xl">
             Referensi standar kapasitas per rit (CD dan Fuso) serta spesifikasi bibit sulam untuk kalkulasi otomatis.

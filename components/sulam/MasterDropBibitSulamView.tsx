@@ -190,20 +190,22 @@ export default function MasterDropBibitSulamView() {
           <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 text-white flex items-center justify-center shadow-md shadow-amber-500/20 shrink-0">
             <Truck className="w-6 h-6" />
           </div>
-          <div>
-            <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-2.5">
-              <span>Master Data Drop Bibit Sulam</span>
-              <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-lg sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+                Master Data Drop Bibit Sulam
+              </h1>
+              <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800 whitespace-nowrap shrink-0">
                 {totalCount} Data
               </span>
-            </h1>
-            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+            </div>
+            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">
               Data master realisasi pengiriman (drop) bibit sulam dengan tampilan tanggal order
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 self-end sm:self-auto">
+        <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
           {canUploadMasterData && (
             <button
               type="button"

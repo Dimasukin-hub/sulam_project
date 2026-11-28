@@ -155,20 +155,22 @@ export default function MasterRealSulamView() {
           <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-600 to-teal-700 text-white flex items-center justify-center shadow-md shadow-emerald-600/20 shrink-0">
             <CheckCircle2 className="w-6 h-6" />
           </div>
-          <div>
-            <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-2.5">
-              <span>Master Data Real Sulam</span>
-              <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-lg sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+                Master Data Real Sulam
+              </h1>
+              <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 whitespace-nowrap shrink-0">
                 {totalCount} Data
               </span>
-            </h1>
-            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+            </div>
+            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">
               Data realisasi penanaman sulam lapangan dengan lookup otomatis Spek BB, Std Rit (CD), dan Rit Planted
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 self-end sm:self-auto">
+        <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
           {canUploadMasterData && (
             <button
               type="button"

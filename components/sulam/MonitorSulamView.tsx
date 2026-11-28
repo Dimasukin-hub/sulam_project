@@ -240,14 +240,14 @@ export default function MonitorSulamView() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 w-full sm:w-auto">
           {/* Filter Keterangan Proses (Custom Dropdown dengan Chevron Berputar & Outside Click) */}
           {prosesList.length > 0 && (
-            <div className="relative" ref={prosesDropdownRef}>
+            <div className="relative flex-1 sm:flex-none min-w-0" ref={prosesDropdownRef}>
               <button
                 type="button"
                 onClick={() => setIsProsesOpen((prev) => !prev)}
-                className="inline-flex items-center justify-between gap-2.5 min-w-[155px] px-3.5 py-2 rounded-xl text-xs font-bold bg-white/10 hover:bg-white/20 text-white backdrop-blur-xs transition-colors border border-white/20 cursor-pointer focus:outline-hidden"
+                className="w-full sm:w-auto inline-flex items-center justify-between gap-2.5 sm:min-w-[160px] px-3.5 py-2 rounded-xl text-xs font-bold bg-white/10 hover:bg-white/20 text-white backdrop-blur-xs transition-colors border border-white/20 cursor-pointer focus:outline-hidden"
                 aria-expanded={isProsesOpen}
               >
                 <span className="truncate">
@@ -261,7 +261,7 @@ export default function MonitorSulamView() {
               </button>
 
               {isProsesOpen && (
-                <div className="absolute right-0 top-full mt-1.5 w-56 max-h-64 overflow-y-auto rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-xl z-50 py-1 divide-y divide-slate-100 dark:divide-slate-800 animate-in fade-in zoom-in-95 duration-100">
+                <div className="absolute left-0 sm:left-auto sm:right-0 top-full mt-1.5 w-full min-w-[200px] sm:w-56 max-h-64 overflow-y-auto rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-xl z-50 py-1 divide-y divide-slate-100 dark:divide-slate-800 animate-in fade-in zoom-in-95 duration-100">
                   <button
                     type="button"
                     onClick={() => {
@@ -304,7 +304,7 @@ export default function MonitorSulamView() {
 
           <a
             href="/api/sulam/export"
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-white text-emerald-800 hover:bg-emerald-50 transition-colors shadow-xs cursor-pointer"
+            className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-white text-emerald-800 hover:bg-emerald-50 transition-colors shadow-xs cursor-pointer whitespace-nowrap shrink-0"
           >
             <Download className="w-3.5 h-3.5" />
             <span>Ekspor Excel</span>
