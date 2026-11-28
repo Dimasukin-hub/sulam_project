@@ -23,6 +23,7 @@ import {
 import { useAuth } from '@/components/AuthProvider';
 import DeleteConfirmationModal from '@/components/DeleteConfirmationModal';
 import SulamSelectDropdown from '@/components/sulam/SulamSelectDropdown';
+import { DROP_KELAS_BIBIT_OPTIONS, isSulamClassMismatch } from '@/lib/sulamClassOptions';
 
 interface MasterLokasiItem {
   lokasi: string;
@@ -47,6 +48,7 @@ export default function FormDropSulamView() {
   const [statusTanaman, setStatusTanaman] = useState('');
   const [monitorDropInfo, setMonitorDropInfo] = useState<{ orderedRit: number; droppedRit: number } | null>(null);
   const [bibitOrderedFromList, setBibitOrderedFromList] = useState<string | null>(null);
+  const [locationJenisBibit, setLocationJenisBibit] = useState<string | null>(null);
 
   // Datepicker states
   const today = new Date();
@@ -142,9 +144,11 @@ export default function FormDropSulamView() {
       if (json.success && json.data) {
         if (json.data.wilayah) setWilayah(json.data.wilayah);
         setStatusTanaman(json.data.keterangan || '-');
-        setBibitOrderedFromList(json.data.spekBB || null);
-        if (json.data.spekBB && !kelasBibit) {
-          setKelasBibit(json.data.spekBB);
+        setLocationJenisBibit(json.data.jenisBibit || null);
+        const orderClassLabel = json.data.formattedKelasBibit || json.data.spekBB || null;
+        setBibitOrderedFromList(orderClassLabel);
+        if (orderClassLabel && !kelasBibit) {
+          setKelasBibit(orderClassLabel);
         }
         setMonitorDropInfo({
           orderedRit: json.data.ritCD || 0,
@@ -157,12 +161,7 @@ export default function FormDropSulamView() {
   }
 
   // Peringatan jika kelas bibit tidak sesuai dengan order
-  const isClassMismatch = Boolean(
-    kelasBibit &&
-    bibitOrderedFromList &&
-    bibitOrderedFromList.trim() !== '-' &&
-    kelasBibit.trim().toLowerCase() !== bibitOrderedFromList.trim().toLowerCase()
-  );
+  const isClassMismatch = isSulamClassMismatch(kelasBibit, bibitOrderedFromList, locationJenisBibit);
 
   // Datepicker helper
   const MONTH_NAMES = [
@@ -618,12 +617,19 @@ export default function FormDropSulamView() {
               </span>
             )}
           </label>
-          <input
-            type="text"
+          <SulamSelectDropdown
             value={kelasBibit}
-            onChange={(e) => setKelasBibit(e.target.value)}
-            placeholder=""
-            className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-600 text-xs font-semibold text-slate-900 dark:text-slate-100 focus:border-emerald-600 focus:outline-hidden"
+            options={Array.from(
+              new Set([
+                ...(kelasBibit && !DROP_KELAS_BIBIT_OPTIONS.includes(kelasBibit) ? [kelasBibit] : []),
+                ...DROP_KELAS_BIBIT_OPTIONS,
+              ])
+            )}
+            onChange={(val) => setKelasBibit(val)}
+            placeholder="Pilih Kelas Bibit"
+            searchable
+            searchPlaceholder="Cari kelas bibit..."
+            triggerClassName="py-2.5 bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-600 shadow-2xs"
           />
 
           {/* NOTIFIKASI JIKA KELAS BIBIT TIDAK SESUAI DENGAN ORDER */}
@@ -839,11 +845,20 @@ export default function FormDropSulamView() {
 
               <div>
                 <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Kelas Bibit</label>
-                <input
-                  type="text"
+                <SulamSelectDropdown
                   value={editKelasBibit}
-                  onChange={(e) => setEditKelasBibit(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-semibold text-slate-900 dark:text-slate-100"
+                  options={Array.from(
+                    new Set([
+                      ...(editKelasBibit && !DROP_KELAS_BIBIT_OPTIONS.includes(editKelasBibit)
+                        ? [editKelasBibit]
+                        : []),
+                      ...DROP_KELAS_BIBIT_OPTIONS,
+                    ])
+                  )}
+                  onChange={(val) => setEditKelasBibit(val)}
+                  placeholder="Pilih Kelas Bibit"
+                  searchable
+                  searchPlaceholder="Cari kelas bibit..."
                 />
               </div>
 

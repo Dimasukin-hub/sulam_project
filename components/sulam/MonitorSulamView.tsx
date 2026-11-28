@@ -18,7 +18,6 @@ import {
   Layers,
   XCircle,
   Package,
-  Activity,
   PieChart as LucidePieChart,
   BarChart3,
   Percent,
@@ -125,7 +124,7 @@ export default function MonitorSulamView() {
   // Filter Bar
   const [search, setSearch] = useState('');
   const [selectedWilayah, setSelectedWilayah] = useState<string[]>([]);
-  const [selectedProses, setSelectedProses] = useState<string>('ALL');
+  const [selectedProses, setSelectedProses] = useState<string>('Proses');
   const [isWilayahOpen, setIsWilayahOpen] = useState(false);
   const [isProsesOpen, setIsProsesOpen] = useState(false);
   const prosesDropdownRef = useRef<HTMLDivElement>(null);
@@ -278,7 +277,9 @@ export default function MonitorSulamView() {
                     <span>Semua Proses</span>
                     {selectedProses === 'ALL' && <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />}
                   </button>
-                  {prosesList.map((pr) => (
+                  {prosesList
+                    .filter((pr) => pr.trim().toLowerCase() !== 'pangkas produksi')
+                    .map((pr) => (
                     <button
                       key={pr}
                       type="button"
@@ -312,90 +313,98 @@ export default function MonitorSulamView() {
         </div>
       </div>
 
-      {/* 2. 6 KPI Summary Cards Sesuai Permintaan */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+      {/* 2. 5 KPI Summary Cards (Order, Drop, Real Sulam, % Drop & % Sulam lebih lebar dengan Progress Bar) */}
+      <div className="grid grid-cols-2 md:grid-cols-6 lg:grid-cols-12 gap-3">
         {/* Card 1: Order */}
-        <div className="p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-2xs">
+        <div className="md:col-span-2 lg:col-span-2 p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-2xs flex flex-col justify-between">
           <div className="flex items-center justify-between mb-1">
             <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Order</span>
             <span className="p-1 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400">
               <Package className="w-3.5 h-3.5" />
             </span>
           </div>
-          <div className="text-xl font-black text-slate-800 dark:text-slate-100 font-mono">
-            {summaryCards.order} <span className="text-[11px] font-normal text-slate-400 font-sans">Rit</span>
+          <div>
+            <div className="text-xl font-black text-slate-800 dark:text-slate-100 font-mono">
+              {summaryCards.order} <span className="text-[11px] font-normal text-slate-400 font-sans">Rit</span>
+            </div>
+            <div className="text-[10px] text-slate-400 mt-0.5">Total permintaan rit</div>
           </div>
-          <div className="text-[10px] text-slate-400 mt-0.5">Total permintaan rit</div>
         </div>
 
         {/* Card 2: Drop */}
-        <div className="p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-2xs">
+        <div className="md:col-span-2 lg:col-span-2 p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-2xs flex flex-col justify-between">
           <div className="flex items-center justify-between mb-1">
             <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Drop</span>
             <span className="p-1 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400">
               <Truck className="w-3.5 h-3.5" />
             </span>
           </div>
-          <div className="text-xl font-black text-amber-600 dark:text-amber-400 font-mono">
-            {summaryCards.drop} <span className="text-[11px] font-normal text-slate-400 font-sans">Rit</span>
+          <div>
+            <div className="text-xl font-black text-amber-600 dark:text-amber-400 font-mono">
+              {summaryCards.drop} <span className="text-[11px] font-normal text-slate-400 font-sans">Rit</span>
+            </div>
+            <div className="text-[10px] text-slate-400 mt-0.5">Total drop ritase</div>
           </div>
-          <div className="text-[10px] text-slate-400 mt-0.5">Total drop ritase</div>
         </div>
 
-        {/* Card 3: Deviasi */}
-        <div className="p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-2xs">
+        {/* Card 3: Real Sulam (digeser ke posisi ke-3 menggantikan Deviasi) */}
+        <div className="col-span-2 md:col-span-2 lg:col-span-2 p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-2xs flex flex-col justify-between">
           <div className="flex items-center justify-between mb-1">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Deviasi</span>
-            <span className="p-1 rounded-lg bg-rose-500/10 text-rose-600 dark:text-rose-400">
-              <Activity className="w-3.5 h-3.5" />
-            </span>
-          </div>
-          <div className="text-xl font-black text-rose-600 dark:text-rose-400 font-mono">
-            {summaryCards.deviasi} <span className="text-[11px] font-normal text-slate-400 font-sans">Rit</span>
-          </div>
-          <div className="text-[10px] text-slate-400 mt-0.5">Order - Drop</div>
-        </div>
-
-        {/* Card 4: Sulam */}
-        <div className="p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-2xs">
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Sulam</span>
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Real Sulam</span>
             <span className="p-1 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
               <CheckCircle2 className="w-3.5 h-3.5" />
             </span>
           </div>
-          <div className="text-xl font-black text-emerald-600 dark:text-emerald-400 font-mono">
-            {summaryCards.sulam} <span className="text-[11px] font-normal text-slate-400 font-sans">Rit</span>
+          <div>
+            <div className="text-xl font-black text-emerald-600 dark:text-emerald-400 font-mono">
+              {summaryCards.sulam} <span className="text-[11px] font-normal text-slate-400 font-sans">Rit</span>
+            </div>
+            <div className="text-[10px] text-slate-400 mt-0.5">Total real sulam</div>
           </div>
-          <div className="text-[10px] text-slate-400 mt-0.5">Total real sulam</div>
         </div>
 
-        {/* Card 5: %Drop */}
-        <div className="p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-2xs">
+        {/* Card 4: % Drop (lebih lebar dengan Progress Bar) */}
+        <div className="col-span-1 md:col-span-3 lg:col-span-3 p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-2xs flex flex-col justify-between">
           <div className="flex items-center justify-between mb-1">
             <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">% Drop</span>
             <span className="p-1 rounded-lg bg-cyan-500/10 text-cyan-600 dark:text-cyan-400">
               <Percent className="w-3.5 h-3.5" />
             </span>
           </div>
-          <div className="text-xl font-black text-cyan-600 dark:text-cyan-400 font-mono">
-            {summaryCards.pctDrop}%
+          <div>
+            <div className="text-xl font-black text-cyan-600 dark:text-cyan-400 font-mono">
+              {summaryCards.pctDrop}%
+            </div>
+            <div className="mt-2 w-full h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-cyan-500 to-sky-400 rounded-full transition-all duration-500"
+                style={{ width: `${Math.min(100, Math.max(0, Number(summaryCards.pctDrop) || 0))}%` }}
+              />
+            </div>
+            <div className="text-[10px] text-slate-400 mt-1.5">Rata-rata (Total % / 7)</div>
           </div>
-          <div className="text-[10px] text-slate-400 mt-0.5">Rata-rata (Total % / 7)</div>
         </div>
 
-        {/* Card 6: %Sulam */}
-        <div className="p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-2xs">
+        {/* Card 5: % Sulam (lebih lebar dengan Progress Bar) */}
+        <div className="col-span-1 md:col-span-3 lg:col-span-3 p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-2xs flex flex-col justify-between">
           <div className="flex items-center justify-between mb-1">
             <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">% Sulam</span>
             <span className="p-1 rounded-lg bg-teal-500/10 text-teal-600 dark:text-teal-400">
               <TrendingUp className="w-3.5 h-3.5" />
             </span>
           </div>
-          <div className="text-xl font-black text-teal-600 dark:text-teal-400 font-mono">
-            {summaryCards.pctSulam}%
+          <div>
+            <div className="text-xl font-black text-teal-600 dark:text-teal-400 font-mono">
+              {summaryCards.pctSulam}%
+            </div>
+            <div className="mt-2 w-full h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-teal-500 to-emerald-500 rounded-full transition-all duration-500"
+                style={{ width: `${Math.min(100, Math.max(0, Number(summaryCards.pctSulam) || 0))}%` }}
+              />
+            </div>
+            <div className="text-[10px] text-slate-400 mt-1.5">Rata-rata (Total % / 7)</div>
           </div>
-          <div className="text-[10px] text-slate-400 mt-0.5">Rata-rata (Total % / 7)</div>
         </div>
       </div>
 
@@ -422,8 +431,7 @@ export default function MonitorSulamView() {
                 <th className="py-2.5 px-3 border-r border-b border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-center w-24">Wilayah</th>
                 <th className="py-2.5 px-3 border-r border-b border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-center">Order (Rit)</th>
                 <th className="py-2.5 px-3 border-r border-b border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-center">Drop (Rit)</th>
-                <th className="py-2.5 px-3 border-r border-b border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-center">Deviasi (Rit)</th>
-                <th className="py-2.5 px-3 border-r border-b border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-center">Sulam (Rit)</th>
+                <th className="py-2.5 px-3 border-r border-b border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-center">Real Sulam (Rit)</th>
                 <th className="py-2.5 px-3 border-r border-b border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-center">% Drop</th>
                 <th className="py-2.5 px-3 border-b border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-center">% Sulam</th>
               </tr>
@@ -439,9 +447,6 @@ export default function MonitorSulamView() {
                   </td>
                   <td className="py-2 px-3 border-r border-slate-200/70 dark:border-slate-800/70 text-amber-600 dark:text-amber-400 font-bold">
                     {item.drop}
-                  </td>
-                  <td className={`py-2 px-3 border-r border-slate-200/70 dark:border-slate-800/70 font-bold ${item.deviasi > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
-                    {item.deviasi}
                   </td>
                   <td className="py-2 px-3 border-r border-slate-200/70 dark:border-slate-800/70 text-emerald-600 dark:text-emerald-400 font-bold">
                     {item.sulam}
@@ -471,9 +476,6 @@ export default function MonitorSulamView() {
                 <td className="py-2.5 px-3 border-r border-slate-200 dark:border-slate-700 text-amber-600 dark:text-amber-400">
                   {summaryCards.drop}
                 </td>
-                <td className="py-2.5 px-3 border-r border-slate-200 dark:border-slate-700 text-rose-600 dark:text-rose-400">
-                  {summaryCards.deviasi}
-                </td>
                 <td className="py-2.5 px-3 border-r border-slate-200 dark:border-slate-700 text-emerald-600 dark:text-emerald-400">
                   {summaryCards.sulam}
                 </td>
@@ -490,19 +492,245 @@ export default function MonitorSulamView() {
       </div>
 
       {/* 4. GRAFIK MONITOR SULAM: 4 VISUALISASI */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Grafik 1: Monitor Sulam Per Wilayah (Bar: Order, Drop, Sulam | Line: %Drop, %Sulam) */}
-        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 sm:p-5 shadow-2xs space-y-3">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
+        {/* Baris Atas Kiri: Gabungan Grafik Batang %Drop vs %Sulam & Grafik Donat Sebaran Kebutuhan Bibit / Kelas */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-stretch">
+          {/* Grafik Kiri: Batang %Drop vs %Sulam (Perbandingan Keseluruhan) */}
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 shadow-2xs flex flex-col justify-between space-y-2">
+            <div className="space-y-0.5">
+              <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200">
+                Grafik Batang %Drop vs %Sulam
+              </h4>
+              <p className="text-[11px] text-slate-500 leading-snug">
+                Perbandingan rata-rata %Drop dan %Sulam
+              </p>
+            </div>
+            <div className="h-56 flex-1 min-h-[220px] w-full pt-1">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={overallDropVsSulam.filter((d) => {
+                    if (d.name === '% Drop') return showOverallDrop;
+                    if (d.name === '% Sulam') return showOverallSulam;
+                    return true;
+                  })}
+                  margin={{ top: 20, right: 16, bottom: 6, left: -10 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.2} />
+                  <XAxis dataKey="name" tick={false} tickLine={false} height={6} axisLine={{ stroke: '#64748b', opacity: 0.3 }} />
+                  <YAxis domain={[0, 100]} tick={{ fontSize: 10.5, fill: '#64748b' }} tickLine={false} axisLine={false} unit="%" />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                      borderRadius: '12px',
+                      border: '1px solid #334155',
+                      color: '#fff',
+                      fontSize: '11px',
+                    }}
+                    formatter={(val: any) => [`${val}%`, 'Persentase']}
+                  />
+                  <Bar dataKey="value" radius={[8, 8, 0, 0]} maxBarSize={52} label={renderCustomBarVal}>
+                    {overallDropVsSulam
+                      .filter((d) => {
+                        if (d.name === '% Drop') return showOverallDrop;
+                        if (d.name === '% Sulam') return showOverallSulam;
+                        return true;
+                      })
+                      .map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.fill} />
+                      ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+            {/* Tombol Legenda di Bawah */}
+            <div className="flex items-center justify-center gap-4 pt-1 pb-2.5">
+              <button
+                type="button"
+                onClick={() => setShowOverallDrop((prev) => !prev)}
+                className={`inline-flex items-center gap-1.5 text-xs font-semibold cursor-pointer transition-opacity duration-150 select-none ${
+                  showOverallDrop ? 'opacity-100 text-slate-700 dark:text-slate-300' : 'opacity-35 hover:opacity-70 text-slate-400 dark:text-slate-500'
+                }`}
+                title="Klik untuk tampilkan/sembunyikan % Drop"
+              >
+                <span className="w-2.5 h-2.5 rounded-xs shrink-0 bg-[#0ea5e9]" />
+                <span>% Drop</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowOverallSulam((prev) => !prev)}
+                className={`inline-flex items-center gap-1.5 text-xs font-semibold cursor-pointer transition-opacity duration-150 select-none ${
+                  showOverallSulam ? 'opacity-100 text-slate-700 dark:text-slate-300' : 'opacity-35 hover:opacity-70 text-slate-400 dark:text-slate-500'
+                }`}
+                title="Klik untuk tampilkan/sembunyikan % Sulam"
+              >
+                <span className="w-2.5 h-2.5 rounded-xs shrink-0 bg-[#10b981]" />
+                <span>% Sulam</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Grafik Kanan: Donat Sebaran Kebutuhan Bibit / Kelas */}
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 shadow-2xs flex flex-col justify-between space-y-2">
+            <div className="space-y-0.5">
+              <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200">
+                Grafik Donat Sebaran Kebutuhan Bibit / Kelas
+              </h4>
+              <p className="text-[11px] text-slate-500 leading-snug">
+                Proporsi kebutuhan ritase bibit sulam per kelas ({selectedProses === 'ALL' ? 'Semua Proses' : selectedProses})
+              </p>
+            </div>
+            <div className="h-56 flex-1 min-h-[210px] w-full pt-1">
+              {sebaranBibitChart.length === 0 ? (
+                <div className="h-full flex items-center justify-center text-xs text-slate-400 italic">
+                  Tidak ada data bibit untuk ditampilkan.
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                        borderRadius: '12px',
+                        border: '1px solid #334155',
+                        color: '#fff',
+                        fontSize: '11px',
+                      }}
+                      formatter={(val: any) => [`${val} Rit`, 'Kebutuhan']}
+                    />
+                    <Pie
+                      data={sebaranBibitChart.filter((d) => !hiddenDonutItems[d.name])}
+                      dataKey="value"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={42}
+                      outerRadius={74}
+                      paddingAngle={3}
+                    >
+                      {sebaranBibitChart
+                        .filter((d) => !hiddenDonutItems[d.name])
+                        .map((entry, index) => (
+                          <Cell key={`donut-${index}`} fill={entry.color} />
+                        ))}
+                    </Pie>
+                  </PieChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+            {/* Tombol Legenda di Bawah */}
+            {sebaranBibitChart.length > 0 && (
+              <div
+                className={
+                  sebaranBibitChart.length === 1
+                    ? 'flex items-center justify-center pt-1 pb-1.5'
+                    : 'grid grid-cols-2 gap-x-3 gap-y-1.5 w-fit max-w-full mx-auto pt-1 pb-1.5'
+                }
+              >
+                {sebaranBibitChart.map((entry) => {
+                  const isHidden = !!hiddenDonutItems[entry.name];
+                  return (
+                    <button
+                      key={entry.name}
+                      type="button"
+                      onClick={() => {
+                        setHiddenDonutItems((prev) => ({
+                          ...prev,
+                          [entry.name]: !prev[entry.name],
+                        }));
+                      }}
+                      className={`inline-flex items-center justify-start gap-1.5 text-[11px] leading-tight text-left font-semibold cursor-pointer transition-opacity duration-150 select-none ${
+                        !isHidden ? 'opacity-100 text-slate-700 dark:text-slate-300' : 'opacity-35 hover:opacity-70 text-slate-400 dark:text-slate-500'
+                      }`}
+                      title={`Klik untuk tampilkan/sembunyikan ${entry.name}`}
+                    >
+                      <span className="w-2.5 h-2.5 rounded-xs shrink-0" style={{ backgroundColor: entry.color }} />
+                      <span>{entry.name}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Baris Atas Kanan: Grafik Distribusi/Umur Tanaman (tetap di posisi semula) */}
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 sm:p-5 shadow-2xs flex flex-col justify-between space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+            <div className="space-y-0.5">
+              <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200">
+                Grafik Distribusi/Umur Tanaman
+              </h4>
+              <p className="text-[11px] text-slate-500">
+                Batang: %Drop • Garis: %Sulam berdasarkan tahapan umur forcing
+              </p>
+            </div>
+            {/* Tombol Legenda di Atas */}
+            <div className="flex items-center gap-3 pt-1 sm:pt-0">
+              <button
+                type="button"
+                onClick={() => setShowForcingDrop((prev) => !prev)}
+                className={`inline-flex items-center gap-1.5 text-xs font-semibold cursor-pointer transition-opacity duration-150 select-none ${
+                  showForcingDrop ? 'opacity-100 text-slate-700 dark:text-slate-300' : 'opacity-35 hover:opacity-70 text-slate-400 dark:text-slate-500'
+                }`}
+                title="Klik untuk tampilkan/sembunyikan % Drop"
+              >
+                <span className="w-2.5 h-2.5 rounded-xs bg-[#0ea5e9]" />
+                <span>% Drop</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowForcingSulam((prev) => !prev)}
+                className={`inline-flex items-center gap-1.5 text-xs font-semibold cursor-pointer transition-opacity duration-150 select-none ${
+                  showForcingSulam ? 'opacity-100 text-slate-700 dark:text-slate-300' : 'opacity-35 hover:opacity-70 text-slate-400 dark:text-slate-500'
+                }`}
+                title="Klik untuk tampilkan/sembunyikan % Sulam"
+              >
+                <span className="w-2.5 h-0.5 rounded-full bg-[#10b981]" />
+                <span>% Sulam</span>
+              </button>
+            </div>
+          </div>
+          <div className="h-72 w-full pt-2">
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart data={umurForcingChart} margin={{ top: 20, right: 15, bottom: 20, left: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.2} />
+                <XAxis dataKey="kategori" tick={{ fontSize: 11, fill: '#64748b' }} tickLine={false} />
+                <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: '#64748b' }} tickLine={false} axisLine={false} unit="%" />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                    borderRadius: '12px',
+                    border: '1px solid #334155',
+                    color: '#fff',
+                    fontSize: '11px',
+                  }}
+                  formatter={(val: any, name: any) => [`${val}%`, name]}
+                />
+                {showForcingDrop && (
+                  <Bar dataKey="pctDrop" name="% Drop" fill="#0ea5e9" radius={[6, 6, 0, 0]} maxBarSize={40} label={renderCustomBarVal} />
+                )}
+                {showForcingSulam && (
+                  <Line type="linear" dataKey="pctSulam" name="% Sulam" stroke="#10b981" strokeWidth={2.5} dot={{ r: 4, fill: '#10b981' }} label={renderCustomLineVal} />
+                )}
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Baris Bawah (Lebar Penuh): Grafik Progres Drop % Sulam Per Wilayah */}
+        <div className="lg:col-span-2 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 sm:p-5 shadow-2xs space-y-3">
           <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-2.5">
             <div className="space-y-0.5">
               <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200">
-                Grafik Monitor Sulam Per Wilayah
+                Grafik Progres Drop % Sulam Per Wilayah
               </h4>
               <p className="text-[11px] text-slate-500">
                 Batang: Order, Drop, Sulam (Rit) • Garis: %Drop & %Sulam
               </p>
             </div>
-            {/* Tombol Legenda di Atas (Dinaikkan posisinya - tanpa badge, redup saat disembunyikan tanpa coret) */}
+            {/* Tombol Legenda di Atas */}
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 pt-1 xl:pt-0">
               <button
                 type="button"
@@ -565,7 +793,7 @@ export default function MonitorSulamView() {
               </button>
             </div>
           </div>
-          <div className="h-72 w-full pt-2">
+          <div className="h-72 sm:h-80 w-full pt-2">
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={wilayahSummary} margin={{ top: 20, right: 15, bottom: 20, left: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.2} />
@@ -582,13 +810,13 @@ export default function MonitorSulamView() {
                   }}
                 />
                 {showWilayahOrder && (
-                  <Bar yAxisId="left" dataKey="order" name="Order" fill="#3b82f6" radius={[4, 4, 0, 0]} maxBarSize={25} />
+                  <Bar yAxisId="left" dataKey="order" name="Order" fill="#3b82f6" radius={[4, 4, 0, 0]} maxBarSize={28} />
                 )}
                 {showWilayahDrop && (
-                  <Bar yAxisId="left" dataKey="drop" name="Drop" fill="#f59e0b" radius={[4, 4, 0, 0]} maxBarSize={25} />
+                  <Bar yAxisId="left" dataKey="drop" name="Drop" fill="#f59e0b" radius={[4, 4, 0, 0]} maxBarSize={28} />
                 )}
                 {showWilayahSulam && (
-                  <Bar yAxisId="left" dataKey="sulam" name="Sulam" fill="#10b981" radius={[4, 4, 0, 0]} maxBarSize={25} />
+                  <Bar yAxisId="left" dataKey="sulam" name="Sulam" fill="#10b981" radius={[4, 4, 0, 0]} maxBarSize={28} />
                 )}
                 {showWilayahPctDrop && (
                   <Line yAxisId="right" type="linear" dataKey="pctDrop" name="% Drop" stroke="#06b6d4" strokeWidth={2} dot={{ r: 3 }} />
@@ -599,223 +827,6 @@ export default function MonitorSulamView() {
               </ComposedChart>
             </ResponsiveContainer>
           </div>
-        </div>
-
-        {/* Grafik 2: Batang Proses Sulam / Umur Forcing (Bar: %Drop | Line: %Sulam) */}
-        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 sm:p-5 shadow-2xs space-y-3">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-            <div className="space-y-0.5">
-              <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200">
-                Grafik Batang Proses Sulam (Umur Forcing)
-              </h4>
-              <p className="text-[11px] text-slate-500">
-                Batang: %Drop • Garis: %Sulam berdasarkan tahapan umur forcing
-              </p>
-            </div>
-            {/* Tombol Legenda di Atas (Dinaikkan posisinya - tanpa badge, redup saat disembunyikan tanpa coret) */}
-            <div className="flex items-center gap-3 pt-1 sm:pt-0">
-              <button
-                type="button"
-                onClick={() => setShowForcingDrop((prev) => !prev)}
-                className={`inline-flex items-center gap-1.5 text-xs font-semibold cursor-pointer transition-opacity duration-150 select-none ${
-                  showForcingDrop ? 'opacity-100 text-slate-700 dark:text-slate-300' : 'opacity-35 hover:opacity-70 text-slate-400 dark:text-slate-500'
-                }`}
-                title="Klik untuk tampilkan/sembunyikan % Drop"
-              >
-                <span className="w-2.5 h-2.5 rounded-xs bg-[#0ea5e9]" />
-                <span>% Drop</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setShowForcingSulam((prev) => !prev)}
-                className={`inline-flex items-center gap-1.5 text-xs font-semibold cursor-pointer transition-opacity duration-150 select-none ${
-                  showForcingSulam ? 'opacity-100 text-slate-700 dark:text-slate-300' : 'opacity-35 hover:opacity-70 text-slate-400 dark:text-slate-500'
-                }`}
-                title="Klik untuk tampilkan/sembunyikan % Sulam"
-              >
-                <span className="w-2.5 h-0.5 rounded-full bg-[#10b981]" />
-                <span>% Sulam</span>
-              </button>
-            </div>
-          </div>
-          <div className="h-72 w-full pt-2">
-            <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={umurForcingChart} margin={{ top: 20, right: 15, bottom: 20, left: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.2} />
-                <XAxis dataKey="kategori" tick={{ fontSize: 11, fill: '#64748b' }} tickLine={false} />
-                <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: '#64748b' }} tickLine={false} axisLine={false} unit="%" />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: 'rgba(15, 23, 42, 0.95)',
-                    borderRadius: '12px',
-                    border: '1px solid #334155',
-                    color: '#fff',
-                    fontSize: '11px',
-                  }}
-                  formatter={(val: any, name: any) => [`${val}%`, name]}
-                />
-                {showForcingDrop && (
-                  <Bar dataKey="pctDrop" name="% Drop" fill="#0ea5e9" radius={[6, 6, 0, 0]} maxBarSize={40} label={renderCustomBarVal} />
-                )}
-                {showForcingSulam && (
-                  <Line type="linear" dataKey="pctSulam" name="% Sulam" stroke="#10b981" strokeWidth={2.5} dot={{ r: 4, fill: '#10b981' }} label={renderCustomLineVal} />
-                )}
-              </ComposedChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* Grafik 3: Batang %Drop vs %Sulam (Perbandingan Keseluruhan) */}
-        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 sm:p-5 shadow-2xs space-y-3">
-          <div className="space-y-0.5">
-            <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200">
-              Grafik Batang %Drop vs %Sulam
-            </h4>
-            <p className="text-[11px] text-slate-500">
-              Perbandingan keseluruhan rata-rata pencapaian %Drop dan %Sulam
-            </p>
-          </div>
-          <div className="h-64 w-full pt-2">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart
-                data={overallDropVsSulam.filter((d) => {
-                  if (d.name === '% Drop') return showOverallDrop;
-                  if (d.name === '% Sulam') return showOverallSulam;
-                  return true;
-                })}
-                margin={{ top: 25, right: 30, bottom: 20, left: 10 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.2} />
-                <XAxis dataKey="name" tick={false} tickLine={false} axisLine={{ stroke: '#64748b', opacity: 0.3 }} />
-                <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: '#64748b' }} tickLine={false} axisLine={false} unit="%" />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: 'rgba(15, 23, 42, 0.95)',
-                    borderRadius: '12px',
-                    border: '1px solid #334155',
-                    color: '#fff',
-                    fontSize: '11px',
-                  }}
-                  formatter={(val: any) => [`${val}%`, 'Persentase']}
-                />
-                <Bar dataKey="value" radius={[8, 8, 0, 0]} maxBarSize={70} label={renderCustomBarVal}>
-                  {overallDropVsSulam
-                    .filter((d) => {
-                      if (d.name === '% Drop') return showOverallDrop;
-                      if (d.name === '% Sulam') return showOverallSulam;
-                      return true;
-                    })
-                    .map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.fill} />
-                    ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-          {/* Tombol Legenda di Bawah (Posisinya tetap di bawah grafik - tanpa badge, redup saat disembunyikan tanpa coret) */}
-          <div className="flex items-center justify-center gap-5 pt-1">
-            <button
-              type="button"
-              onClick={() => setShowOverallDrop((prev) => !prev)}
-              className={`inline-flex items-center gap-1.5 text-xs font-semibold cursor-pointer transition-opacity duration-150 select-none ${
-                showOverallDrop ? 'opacity-100 text-slate-700 dark:text-slate-300' : 'opacity-35 hover:opacity-70 text-slate-400 dark:text-slate-500'
-              }`}
-              title="Klik untuk tampilkan/sembunyikan % Drop"
-            >
-              <span className="w-2.5 h-2.5 rounded-xs bg-[#0ea5e9]" />
-              <span>% Drop</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setShowOverallSulam((prev) => !prev)}
-              className={`inline-flex items-center gap-1.5 text-xs font-semibold cursor-pointer transition-opacity duration-150 select-none ${
-                showOverallSulam ? 'opacity-100 text-slate-700 dark:text-slate-300' : 'opacity-35 hover:opacity-70 text-slate-400 dark:text-slate-500'
-              }`}
-              title="Klik untuk tampilkan/sembunyikan % Sulam"
-            >
-              <span className="w-2.5 h-2.5 rounded-xs bg-[#10b981]" />
-              <span>% Sulam</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Grafik 4: Donat Sebaran Kebutuhan Bibit / Kelas */}
-        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 sm:p-5 shadow-2xs space-y-3">
-          <div className="space-y-0.5">
-            <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200">
-              Grafik Donat Sebaran Kebutuhan Bibit / Kelas
-            </h4>
-            <p className="text-[11px] text-slate-500">
-              Proporsi kebutuhan ritase bibit sulam berdasarkan jenis/kelas
-            </p>
-          </div>
-          <div className="h-64 w-full pt-2">
-            {sebaranBibitChart.length === 0 ? (
-              <div className="h-full flex items-center justify-center text-xs text-slate-400 italic">
-                Tidak ada data bibit untuk ditampilkan.
-              </div>
-            ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: 'rgba(15, 23, 42, 0.95)',
-                      borderRadius: '12px',
-                      border: '1px solid #334155',
-                      color: '#fff',
-                      fontSize: '11px',
-                    }}
-                    formatter={(val: any) => [`${val} Rit`, 'Kebutuhan']}
-                  />
-                  <Pie
-                    data={sebaranBibitChart.filter((d) => !hiddenDonutItems[d.name])}
-                    dataKey="value"
-                    nameKey="name"
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={50}
-                    outerRadius={85}
-                    paddingAngle={3}
-                  >
-                    {sebaranBibitChart
-                      .filter((d) => !hiddenDonutItems[d.name])
-                      .map((entry, index) => (
-                        <Cell key={`donut-${index}`} fill={entry.color} />
-                      ))}
-                  </Pie>
-                </PieChart>
-              </ResponsiveContainer>
-            )}
-          </div>
-          {/* Tombol Legenda di Bawah (Posisinya tetap di bawah grafik - tanpa badge, redup saat disembunyikan tanpa coret) */}
-          {sebaranBibitChart.length > 0 && (
-            <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 pt-1">
-              {sebaranBibitChart.map((entry) => {
-                const isHidden = !!hiddenDonutItems[entry.name];
-                return (
-                  <button
-                    key={entry.name}
-                    type="button"
-                    onClick={() => {
-                      setHiddenDonutItems((prev) => ({
-                        ...prev,
-                        [entry.name]: !prev[entry.name],
-                      }));
-                    }}
-                    className={`inline-flex items-center gap-1.5 text-xs font-semibold cursor-pointer transition-opacity duration-150 select-none ${
-                      !isHidden ? 'opacity-100 text-slate-700 dark:text-slate-300' : 'opacity-35 hover:opacity-70 text-slate-400 dark:text-slate-500'
-                    }`}
-                    title={`Klik untuk tampilkan/sembunyikan ${entry.name}`}
-                  >
-                    <span className="w-2.5 h-2.5 rounded-xs" style={{ backgroundColor: entry.color }} />
-                    <span>{entry.name}</span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
         </div>
       </div>
 

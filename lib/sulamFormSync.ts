@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { extractSessionUser } from '@/lib/sulamRoleHelper';
 import { hasCustomMenuOverride, hasMenuAccess } from '@/lib/menuAccess';
+import { normalizeSpekBibitLabel } from '@/lib/sulamClassOptions';
 
 export type SulamFormMenuId = 'form_order_sulam' | 'form_drop_sulam' | 'form_realisasi_sulam';
 
@@ -49,8 +50,16 @@ export async function resolveSulamSpekRit(
   let stdRitCD = 2000;
   let stdRitFuso = 3500;
   if (kelasBibit && kelasBibit.trim()) {
+    const normalizedSpek = normalizeSpekBibitLabel(kelasBibit);
     const spek = await prisma.masterSpekBibitSulam.findFirst({
-      where: { spekBBSulamBtg: { equals: kelasBibit.trim(), mode: 'insensitive' } },
+      where: {
+        OR: [
+          { spekBBSulamBtg: { equals: kelasBibit.trim(), mode: 'insensitive' } },
+          ...(normalizedSpek !== '-'
+            ? [{ spekBBSulamBtg: { equals: normalizedSpek, mode: 'insensitive' as const } }]
+            : []),
+        ],
+      },
     });
     if (spek) {
       if (spek.cd > 0) stdRitCD = spek.cd;

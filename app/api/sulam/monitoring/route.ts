@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { formatSulamClassLabel } from '@/lib/sulamClassOptions';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,6 +36,7 @@ export async function GET(request: NextRequest) {
     // Map Order per Lokasi (ambil record order pertama / terbaru)
     const orderMap = new Map<string, any>();
     const prosesMap = new Map<string, string>(); // lowercase key -> canonical label
+    prosesMap.set('proses', 'Proses');
     for (const ord of allOrders) {
       const lok = ord.lokasi.trim().toUpperCase();
       if (!orderMap.has(lok)) {
@@ -43,7 +45,7 @@ export async function GET(request: NextRequest) {
       if (ord.keteranganProses && ord.keteranganProses.trim()) {
         const raw = ord.keteranganProses.trim();
         const lower = raw.toLowerCase();
-        if (!prosesMap.has(lower)) {
+        if (lower !== 'pangkas produksi' && !prosesMap.has(lower)) {
           const canonical = raw.charAt(0).toUpperCase() + raw.slice(1);
           prosesMap.set(lower, canonical);
         }
@@ -299,23 +301,26 @@ export async function GET(request: NextRequest) {
       { name: '% Sulam', value: avgPctSulam, fill: '#10b981' },
     ];
 
-    // 7. Grafik Donat Sebaran Kebutuhan Bibit / Kelas (Proporsi Ritase Order)
+    // 7. Grafik Donat Sebaran Kebutuhan Bibit / Kelas (Proporsi Ritase Order Per Kelas dari List Sulam)
     const bibitMap = new Map<string, number>();
     for (const r of filteredByProsesRows) {
       if (r.permintaanRit > 0) {
-        const key = r.jenisBibit !== '-' ? r.jenisBibit : (r.kelasBibit !== '-' ? r.kelasBibit : 'Lainnya');
+        const key = formatSulamClassLabel(r.jenisBibit, r.spekBibit, r.kelasBibit);
         bibitMap.set(key, (bibitMap.get(key) || 0) + r.permintaanRit);
       }
     }
-    // Jika tidak ada data order rit, gunakan count jenis bibit
+    // Jika tidak ada data order rit, gunakan count per kelas bibit
     if (bibitMap.size === 0) {
       for (const r of filteredByProsesRows) {
-        const key = r.jenisBibit !== '-' ? r.jenisBibit : 'Lainnya';
+        const key = formatSulamClassLabel(r.jenisBibit, r.spekBibit, r.kelasBibit);
         bibitMap.set(key, (bibitMap.get(key) || 0) + 1);
       }
     }
 
-    const DONUT_COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16'];
+    const DONUT_COLORS = [
+      '#10b981', '#3b82f6', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16',
+      '#f97316', '#14b8a6', '#6366f1', '#eab308', '#ef4444', '#a855f7', '#0ea5e9',
+    ];
     const sebaranBibitChart = Array.from(bibitMap.entries())
       .map(([name, value], idx) => ({
         name,

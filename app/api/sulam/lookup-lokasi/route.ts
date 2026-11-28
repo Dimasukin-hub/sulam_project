@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { formatSulamClassLabel, normalizeSpekBibitLabel } from '@/lib/sulamClassOptions';
 
 export const dynamic = 'force-dynamic';
 
@@ -46,13 +47,17 @@ export async function GET(request: NextRequest) {
 
     const cleanLokasi = lokasiParam.trim().toUpperCase();
 
-    // Ambil data dari MasterStatusLokasi, ListSulam, dan MasterSpekBibitSulam
-    const [statusLokasi, listSulam, allSpek] = await Promise.all([
+    // Ambil data dari MasterStatusLokasi, ListSulam, MasterDataOrderSulam, dan MasterSpekBibitSulam
+    const [statusLokasi, listSulam, latestOrder, allSpek] = await Promise.all([
       prisma.masterStatusLokasi.findFirst({
         where: { lokasi: cleanLokasi },
       }),
       prisma.listSulam.findFirst({
         where: { lokasi: cleanLokasi },
+      }),
+      prisma.masterDataOrderSulam.findFirst({
+        where: { lokasi: cleanLokasi },
+        orderBy: [{ tanggalOrder: 'desc' }, { id: 'desc' }],
       }),
       prisma.masterSpekBibitSulam.findMany({}),
     ]);
@@ -72,14 +77,24 @@ export async function GET(request: NextRequest) {
     }
     const usiaDetailStr = usia !== null && usia !== undefined ? `${usia} Bulan` : '-';
 
-    const spekBB = listSulam?.spekBibit || null;
-    const keterangan = listSulam?.keteranganProses || (spekBB?.toLowerCase().includes('pangkas prod') ? 'Pangkas Produksi' : null);
+    const jenisBibit = statusLokasi?.jenis || listSulam?.jenisBibit || null;
+    const spekBB = listSulam?.spekBibit || latestOrder?.spekBibit || null;
+    const formattedKelasBibit = spekBB && spekBB.trim() !== '-'
+      ? formatSulamClassLabel(jenisBibit, spekBB)
+      : null;
+    const keterangan =
+      listSulam?.keteranganProses ||
+      latestOrder?.keteranganProses ||
+      (spekBB?.toLowerCase().includes('pangkas prod') ? 'Pangkas Produksi' : null);
 
     let stdRitCD = 0;
     let stdRitFuso = 0;
     if (spekBB) {
+      const normalizedSpek = normalizeSpekBibitLabel(spekBB);
       const matchedSpek = allSpek.find(
-        (s) => s.spekBBSulamBtg.toLowerCase().trim() === spekBB.toLowerCase().trim()
+        (s) =>
+          s.spekBBSulamBtg.toLowerCase().trim() === spekBB.toLowerCase().trim() ||
+          s.spekBBSulamBtg.toLowerCase().trim() === normalizedSpek.toLowerCase().trim()
       );
       if (matchedSpek) {
         stdRitCD = matchedSpek.cd;
@@ -92,15 +107,17 @@ export async function GET(request: NextRequest) {
       data: {
         lokasi: cleanLokasi,
         wilayah,
+        jenisBibit,
         tanggalForcingMax: tglFMax ? new Date(tglFMax).toISOString().slice(0, 10) : null,
         usia,
         usiaDisplay: usiaDetailStr,
         kelasBibit: spekBB || 'Sucker No. 2',
+        formattedKelasBibit,
         spekBB,
         keterangan: keterangan || 'Pangkas Produksi',
-        ritCD: listSulam?.permintaanRit || 0,
+        ritCD: listSulam?.permintaanRit || latestOrder?.rit || 0,
         ritFuso: 0,
-        permintaanRitaseBtg: listSulam?.permintaanJumlah || 0,
+        permintaanRitaseBtg: listSulam?.permintaanJumlah || latestOrder?.jumlah || 0,
         stdRitCD,
         stdRitFuso,
       },

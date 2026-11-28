@@ -12,6 +12,7 @@ interface SulamSelectDropdownProps {
   searchPlaceholder?: string;
   accent?: 'emerald' | 'teal';
   disabled?: boolean;
+  triggerClassName?: string;
 }
 
 /**
@@ -27,6 +28,7 @@ export default function SulamSelectDropdown({
   searchPlaceholder = 'Cari...',
   accent = 'emerald',
   disabled = false,
+  triggerClassName,
 }: SulamSelectDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -81,7 +83,9 @@ export default function SulamSelectDropdown({
         type="button"
         disabled={disabled}
         onClick={() => !disabled && setIsOpen((prev) => !prev)}
-        className={`relative w-full pl-3.5 pr-9 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border text-xs text-left flex items-center justify-between transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 ${
+        className={`relative w-full pl-3.5 pr-9 rounded-xl text-xs text-left flex items-center justify-between transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 ${
+          triggerClassName || 'py-2 bg-slate-50 dark:bg-slate-800 border'
+        } ${
           isOpen
             ? focusRing
             : 'border-slate-200 dark:border-slate-700 focus:ring-emerald-500'
